@@ -6,7 +6,7 @@ uvicorn[standard]>=0.29
 # Optional: server.py degrades gracefully if it's missing. An avahi .service file works too.
 zeroconf>=0.131
 
-# Tuya-local device control (plugs / lights / switches / climate). Optional and imported
+# Tuya-local device control (plugs / lights / switches / A/C units). Optional and imported
 # lazily — the app runs without it until a real Tuya device is configured in smartmon.json.
 # Install on the Pi when you add hardware:  pip install tinytuya
 # tinytuya>=1.13

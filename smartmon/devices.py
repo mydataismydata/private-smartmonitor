@@ -3,7 +3,7 @@
 A Device is "what it is and how to reach it"; its live *state* lives in a
 DeviceState (see backends/base.py) produced by whichever backend drives it. The
 type fixes the device's CAPABILITIES, which is what the dashboard renders controls
-from — a `light` gets a brightness slider, a `climate` gets the thermostat dial,
+from — a `light` gets a brightness slider, an `ac` gets the thermostat dial,
 a `plug` shows its wattage, and so on.
 """
 from __future__ import annotations
@@ -12,15 +12,21 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
 # Supported device kinds. Each maps to a fixed capability set below.
-DEVICE_TYPES = ("plug", "switch", "light", "climate", "solar_appliance")
+#   ac        an air-conditioner / thermostat unit ("A/C")
+#   solar_ac  the EG4/Deye "Solar Aircon" mini-split ("Solar A/C"): an A/C that also meters PV/grid
+DEVICE_TYPES = ("plug", "switch", "light", "ac", "solar_ac")
+
+# Older type names accepted on load, so a smartmon.json written before the rename still works
+# (they're normalized to the current ids, and re-saved under the new names on the next edit).
+TYPE_ALIASES = {"climate": "ac", "solar_appliance": "solar_ac"}
 
 # What each type can do — drives both the API contract and the UI controls.
 #   power        on/off
 #   brightness   0-100 dimmer
 #   color_temp   0-100 warm..cool (optional; lights that support it)
 #   energy       live power draw in watts (read-only)
-#   mode         climate operating mode (see CLIMATE_MODES)
-#   setpoint     climate target temperature (writable)
+#   mode         A/C operating mode (see AC_MODES)
+#   setpoint     A/C target temperature (writable)
 #   temperature  measured room temperature (read-only)
 #   solar_power  PV input power, watts (read-only) — the EG4/Deye "Solar Aircon" mini-split
 #   grid_power   grid/AC input power, watts (read-only), plus the PV/grid % split
@@ -28,14 +34,14 @@ CAPABILITIES: Dict[str, Tuple[str, ...]] = {
     "plug": ("power", "energy"),
     "switch": ("power",),
     "light": ("power", "brightness", "color_temp"),
-    "climate": ("power", "mode", "setpoint", "temperature"),
-    # The solar mini-split is a climate unit that ALSO meters its PV vs. grid power (LAN-only DPs).
-    "solar_appliance": ("power", "mode", "setpoint", "temperature", "solar_power", "grid_power"),
+    "ac": ("power", "mode", "setpoint", "temperature"),
+    # The solar mini-split is an A/C unit that ALSO meters its PV vs. grid power (LAN-only DPs).
+    "solar_ac": ("power", "mode", "setpoint", "temperature", "solar_power", "grid_power"),
 }
 
-# Canonical climate modes the UI/API speak. A backend maps these onto whatever the
+# Canonical A/C modes the UI/API speak. A backend maps these onto whatever the
 # hardware calls them (e.g. Tuya's cool/cold, dry/wet) via a per-device mode_map.
-CLIMATE_MODES = ("auto", "cool", "heat", "dry", "fan")
+AC_MODES = ("auto", "cool", "heat", "dry", "fan")
 
 # Backends a device can be driven by. "demo" is the in-memory simulator.
 PROTOCOLS = ("demo", "tuya")
@@ -89,6 +95,7 @@ class Device:
         if not dev_id:
             raise DeviceConfigError("device is missing an 'id'")
         dtype = str(raw.get("type") or "").strip().lower()
+        dtype = TYPE_ALIASES.get(dtype, dtype)  # accept legacy names (climate/solar_appliance)
         if dtype not in DEVICE_TYPES:
             raise DeviceConfigError(f"device {dev_id!r} has unknown type {dtype!r} (want one of {DEVICE_TYPES})")
         protocol = str(raw.get("protocol") or "tuya").strip().lower()

@@ -40,13 +40,13 @@
       "id": "living-ac",
       "name": "Living Mini-Split",
       "room": "Living Room",
-      "type": "solar_appliance",
+      "type": "solar_ac",
       "version": 3.3,
       "protocol": "tuya",
       "ip": "192.168.1.53",
       "device_id": "xxxxxxxxxxxxxxxxxxxx",
       "local_key": "xxxxxxxxxxxxxxxx",
-      "_note": "The EG4/Deye 'Solar Aircon' mini-split (same unit SolarPi reads). The solar_appliance type surfaces its PV power (DP 106) and grid/AC power (DP 111) split, and already knows this unit's cold/hot/wet mode names, so no mode_map is needed. Set options.temp_divisor to 10 if a live status() shows temps in tenths."
+      "_note": "The EG4/Deye 'Solar Aircon' mini-split (same unit SolarPi reads). The solar_ac type surfaces its PV power (DP 106) and grid/AC power (DP 111) split, and already knows this unit's cold/hot/wet mode names, so no mode_map is needed. Set options.temp_divisor to 10 if a live status() shows temps in tenths. (Type 'ac' is a plain A/C without the solar metering.)"
     },
     {
       "id": "old-lamp",

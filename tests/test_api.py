@@ -1,4 +1,4 @@
-"""Registry + poller + API payloads, including the climate anti-short-cycle cooldowns.
+"""Registry + poller + API payloads, including the A/C anti-short-cycle cooldowns.
 Pure/stdlib:  python tests/test_api.py
 """
 import asyncio
@@ -23,8 +23,9 @@ class FakeClock:
         return self.t
 
 
-def climate_registry():
-    devs = [Device(id="ac", name="AC", type="climate", protocol="demo",
+def compressor_registry():
+    # The solar mini-split is the only compressor-protected type.
+    devs = [Device(id="ac", name="Mini-Split", type="solar_ac", protocol="demo",
                    options={"demo_power": True, "demo_mode": "cool", "demo_setpoint": 21})]
     return Registry(devs, demo=True)
 
@@ -68,10 +69,10 @@ class TestDevicesPayload(unittest.TestCase):
         self.assertFalse(api.one_device_payload(self.reg, self.poller, "nope")["available"])
 
 
-class TestClimateCooldown(unittest.TestCase):
+class TestCompressorCooldown(unittest.TestCase):
     def test_power_cooldown_blocks_then_clears(self):
         clock = FakeClock()
-        reg = climate_registry()
+        reg = compressor_registry()
         poller = DevicePoller(reg, interval_s=10, clock=clock)
         asyncio.run(poller.poll_once())
         ac = reg.by_id["ac"]
@@ -87,7 +88,7 @@ class TestClimateCooldown(unittest.TestCase):
 
     def test_same_side_mode_switch_is_free(self):
         clock = FakeClock()
-        reg = climate_registry()
+        reg = compressor_registry()
         poller = DevicePoller(reg, interval_s=10, clock=clock)
         asyncio.run(poller.poll_once())
         ac = reg.by_id["ac"]
@@ -97,7 +98,7 @@ class TestClimateCooldown(unittest.TestCase):
 
     def test_reversing_mode_switch_is_gated(self):
         clock = FakeClock()
-        reg = climate_registry()
+        reg = compressor_registry()
         poller = DevicePoller(reg, interval_s=10, clock=clock)
         asyncio.run(poller.poll_once())
         ac = reg.by_id["ac"]
@@ -109,15 +110,31 @@ class TestClimateCooldown(unittest.TestCase):
         clock.t += 301
         self.assertTrue(asyncio.run(poller.apply(ac, {"mode": "cool"}))["ok"])
 
-    def test_non_climate_has_no_cooldown(self):
-        devs = [Device(id="plug", name="P", type="plug", protocol="demo")]
+    def test_plain_ac_is_also_gated(self):
+        # The gate covers BOTH A/C types, so a plain `ac` short-cycle is blocked too.
+        clock = FakeClock()
+        reg = Registry([Device(id="ac", name="A/C", type="ac", protocol="demo",
+                               options={"demo_power": True})], demo=True)
+        poller = DevicePoller(reg, interval_s=10, clock=clock)
+        asyncio.run(poller.poll_once())
+        ac = reg.by_id["ac"]
+        self.assertTrue(asyncio.run(poller.apply(ac, {"power": False}))["ok"])
+        self.assertTrue(asyncio.run(poller.apply(ac, {"power": True}))["cooldown"])
+
+    def test_non_compressor_types_have_no_cooldown(self):
+        # Plugs, switches, and lights toggle freely — only the A/C types are gated.
+        devs = [
+            Device(id="plug", name="P", type="plug", protocol="demo"),
+            Device(id="fan", name="F", type="switch", protocol="demo"),
+        ]
         reg = Registry(devs, demo=True)
         poller = DevicePoller(reg, interval_s=10)
         asyncio.run(poller.poll_once())
-        plug = reg.by_id["plug"]
-        for _ in range(4):  # rapid toggles are fine for a plug
-            self.assertTrue(asyncio.run(poller.apply(plug, {"power": True}))["ok"])
-            self.assertTrue(asyncio.run(poller.apply(plug, {"power": False}))["ok"])
+        for dev_id in ("plug", "fan"):
+            dev = reg.by_id[dev_id]
+            for _ in range(4):  # rapid toggles are fine
+                self.assertTrue(asyncio.run(poller.apply(dev, {"power": True}))["ok"])
+                self.assertTrue(asyncio.run(poller.apply(dev, {"power": False}))["ok"])
 
 
 if __name__ == "__main__":

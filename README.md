@@ -1,6 +1,6 @@
 # Private SmartMonitor
 
-A self-hosted controller for **smart plugs, lights, switches, and climate devices**, running
+A self-hosted controller for **smart plugs, lights, switches, and A/C units**, running
 headless on a Raspberry Pi and served over the local network. It's a sibling of the
 [Solar Tracking Dashboard](https://github.com/mydataismydata/solarpi) ("SolarPi") and shares its
 shape — a FastAPI server that runs a background poll loop and serves a static dashboard — but where
@@ -18,7 +18,7 @@ your OS by default). A device card opens a thermostat-style control sheet:
 
 - **light** → circular brightness dial + brightness / warm-cool sliders
 - **plug** → live power-draw dial + on/off
-- **climate** → setpoint dial, −/+ stepper, Cool/Heat/Auto/Dry/Fan/Off, room-temp readout
+- **A/C** (`ac` / `solar_ac`) → setpoint dial, −/+ stepper, Cool/Heat/Auto/Dry/Fan/Off, room-temp readout
 - **switch** → a big on/off
 
 There's also an **Automation** tab (routines, matching the mockups) — see *Roadmap* for what's wired
@@ -30,16 +30,17 @@ A device's `type` fixes its capabilities, which is what the UI renders controls 
 
 | Type              | Capabilities                                   | Controls shown |
 |-------------------|------------------------------------------------|----------------|
-| `plug`            | power, energy                                  | toggle + live watts |
-| `switch`          | power                                          | toggle |
-| `light`           | power, brightness, color_temp                  | toggle + brightness/color sliders + dial |
-| `climate`         | power, mode, setpoint, temperature             | setpoint dial + stepper + mode buttons |
-| `solar_appliance` | climate + **solar_power, grid_power**          | thermostat, plus PV vs. AC watts and their split |
+| `plug`     | power, energy                          | toggle + live watts |
+| `switch`   | power                                  | toggle |
+| `light`    | power, brightness, color_temp          | toggle + brightness/color sliders + dial |
+| `ac`       | power, mode, setpoint, temperature     | **A/C** — setpoint dial + stepper + mode buttons |
+| `solar_ac` | A/C + **solar_power, grid_power**      | **Solar A/C** — thermostat, plus PV vs. AC watts and their split |
 
-`solar_appliance` is the EG4/Deye **"Solar Aircon" mini-split** (the unit SolarPi reads): a climate
-device that also meters its **PV power (DP 106)** and **grid/AC power (DP 111)** on LAN-only
-datapoints — pick this type, not `plug`, or you'll read the wrong DP and see a meaningless wattage.
-It already knows the unit's `cold`/`hot`/`wet` mode names, so no `mode_map` is needed.
+`solar_ac` (**"Solar A/C"**) is the EG4/Deye "Solar Aircon" mini-split (the unit SolarPi reads): an
+A/C that also meters its **PV power (DP 106)** and **grid/AC power (DP 111)** on LAN-only datapoints —
+pick this type, not `plug`, or you'll read the wrong DP and see a meaningless wattage. It already
+knows the unit's `cold`/`hot`/`wet` mode names, so no `mode_map` is needed. Plain `ac` is the same
+thermostat without the solar metering.
 
 State flows one way: a **backend** reads a device into a `DeviceState` and applies plain command
 dicts (`{"power": true}`, `{"brightness": 60}`, `{"mode": "cool", "setpoint": 21}`) to it. Adding a
@@ -50,7 +51,7 @@ it changes.
 
 | Backend | What it does |
 |---------|--------------|
-| `tuya`  | Tuya-local (LAN, v3.x) control of plugs/lights/switches/climate. Generalized from SolarPi's read-only mini-split client into a read/write driver. Needs `tinytuya` (lazy-imported). |
+| `tuya`  | Tuya-local (LAN, v3.x) control of plugs/lights/switches/A-C units. Generalized from SolarPi's read-only mini-split client into a read/write driver. Needs `tinytuya` (lazy-imported). |
 | `demo`  | An in-memory simulated fleet, so the whole app runs and is clickable with **no hardware** — the SmartMonitor analogue of SolarPi's inverter simulator. |
 
 ## Layout
@@ -64,7 +65,7 @@ smartmon/
     tuya.py         Tuya-local driver + a pure, tested DP codec
     demo.py         in-memory simulator + the sample fleet
   registry.py       load smartmon.json (or the demo fleet) and wire up backends
-  poller.py         poll loop + control entry point (climate anti-short-cycle policy)
+  poller.py         poll loop + control entry point (A/C anti-short-cycle policy)
   manager.py        add/edit/remove devices: validate, persist, hot-reload (demo->live)
   store.py          atomic writes of smartmon.json
   discovery.py      LAN scan for Tuya devices (tinytuya), lazy-imported
@@ -98,7 +99,7 @@ python tests/test_api.py
 ```
 
 Pure `unittest`; they cover the device model, the Tuya DP codec (both directions), the demo backend,
-the API payloads, and the climate cooldowns.
+the API payloads, and the A/C cooldowns.
 
 ### Production server (FastAPI)
 
@@ -149,7 +150,7 @@ Its live snapshot is also the moment to confirm DP numbers and scales against th
 whether a light's brightness is 10..1000 or 25..255, or a plug's power is in watts or tenths).
 
 > **The mini-split is shared, safely.** The EG4/Deye unit SolarPi reads is a Tuya device too, so it
-> appears here as a `solar_appliance` device (see `smartmon.example.json`) — same PV/grid metering,
+> appears here as a `solar_ac` device (see `smartmon.example.json`) — same PV/grid metering,
 > now with control. Tuya v3.3's LAN protocol allows a single connection at a time, so if both apps
 > poll it, stagger their intervals (or let one own the link).
 
@@ -169,8 +170,10 @@ whether a light's brightness is 10..1000 or 25..255, or a plug's power is in wat
 | POST   | `/api/automations/{id}/toggle` | enable/disable a routine |
 | GET    | `/api/health` | liveness + device counts |
 
-Climate on/off and heat↔cool reversals are rate-limited server-side (5-minute cooldown) to protect
-the compressor; a blocked command returns `{"ok": false, "cooldown": true, "retry_after": <s>}`.
+An **A/C unit**'s on/off and heat↔cool reversals (both `ac` and `solar_ac`) are rate-limited
+server-side (5-minute cooldown) to protect the compressor from short-cycling; a blocked command
+returns `{"ok": false, "cooldown": true, "retry_after": <s>}`. Plugs, lights, and switches toggle
+freely.
 
 ## Running on the Pi (alongside SolarPi)
 

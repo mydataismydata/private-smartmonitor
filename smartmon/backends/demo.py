@@ -96,7 +96,7 @@ def demo_devices() -> list:
     specs = [
         ("living-lamp", "Living Room Lamp", "light", "Living Room", {"demo_brightness": 72}),
         ("living-tv", "TV & Media Plug", "plug", "Living Room", {"demo_watts": 130}),
-        ("living-ac", "Living Mini-Split", "solar_appliance", "Living Room",
+        ("living-ac", "Living Mini-Split", "solar_ac", "Living Room",
          {"demo_mode": "cool", "demo_setpoint": 16, "demo_temp": 16, "demo_solar": 659, "demo_grid": 40}),
         ("kitchen-coffee", "Coffee Maker", "plug", "Kitchen", {"demo_power": False, "demo_watts": 950}),
         ("kitchen-lights", "Kitchen Lights", "light", "Kitchen", {"demo_brightness": 100}),

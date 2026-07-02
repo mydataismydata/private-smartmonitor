@@ -3,9 +3,9 @@
 Every `interval_s` it refreshes every device's state through its backend and caches
 the result in memory (the API reads straight from this cache — there's no database in
 phase 1). All control goes through `apply()`, which also enforces the one bit of
-device-protection policy carried over from SolarPi: a climate unit's compressor must
-not be short-cycled, so on/off toggles and heat<->cool reversals are gated by a
-5-minute cooldown. Plugs, lights, and switches have no such limit.
+device-protection policy carried over from SolarPi: an A/C unit's compressor must not
+be short-cycled, so on/off toggles and heat<->cool reversals on an `ac` or `solar_ac`
+device are gated by a 5-minute cooldown. Plugs, lights, and switches toggle freely.
 """
 from __future__ import annotations
 
@@ -17,11 +17,11 @@ from .backends.base import Command, DeviceState
 from .devices import Device
 from .registry import Registry
 
-POWER_COOLDOWN_S = 300         # min seconds between a climate unit's on/off changes
+POWER_COOLDOWN_S = 300         # min seconds between an A/C unit's on/off changes
 MODE_REVERSE_COOLDOWN_S = 300  # min seconds between heat<->cool switches (compressor reversal)
 _COOLING_MODES = ("cool", "dry")  # cool + dry drive the compressor the same way; heat reverses it
-# Types with a compressor to protect (the plain climate unit and the solar mini-split).
-COMPRESSOR_TYPES = ("climate", "solar_appliance")
+# Types with a compressor to protect from short-cycling — both A/C variants.
+COMPRESSOR_TYPES = ("ac", "solar_ac")
 
 
 def _is_compressor_reverse(from_mode: Optional[str], to_mode: Optional[str]) -> bool:
@@ -78,8 +78,8 @@ class DevicePoller:
         return 0 if t is None else max(0, MODE_REVERSE_COOLDOWN_S - (int(self.clock()) - t))
 
     async def apply(self, device: Device, command: Command) -> Dict[str, object]:
-        """Apply a command, enforcing climate cooldowns server-side, then refresh the
-        device's cached state so the response/UI reflects the change immediately."""
+        """Apply a command, enforcing an A/C unit's compressor cooldowns server-side, then
+        refresh the device's cached state so the response/UI reflects the change immediately."""
         backend = self.registry.backend_for(device)
         if backend is None:
             return {"ok": False, "error": "no backend for device"}

@@ -41,13 +41,13 @@ const ICONS = {
 const icon = (name, cls) =>
   `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`;
 
-const TYPE_ICON = { light: 'bulb', plug: 'plug', switch: 'power', climate: 'thermo', solar_appliance: 'ac' };
+const TYPE_ICON = { light: 'bulb', plug: 'plug', switch: 'power', ac: 'ac', solar_ac: 'sun' };
 const TYPES = [
   { t: 'plug', label: 'Plug', ic: 'plug' },
   { t: 'light', label: 'Light', ic: 'bulb' },
   { t: 'switch', label: 'Switch', ic: 'power' },
-  { t: 'climate', label: 'Climate', ic: 'thermo' },
-  { t: 'solar_appliance', label: 'Solar A/C', ic: 'ac' },
+  { t: 'ac', label: 'A/C', ic: 'ac' },
+  { t: 'solar_ac', label: 'Solar A/C', ic: 'sun' },
 ];
 const MODES = [
   { m: 'cool', ic: 'snow', label: 'Cool' },
@@ -179,8 +179,8 @@ function deviceBody(d) {
       const w = st.power ? (st.power_w ?? 0) : 0;
       return `<div class="device-metric">${Math.round(w)}<small>W</small></div>`;
     }
-    case 'solar_appliance':
-    case 'climate': {
+    case 'solar_ac':
+    case 'ac': {
       const t = tempDisplay(st.current_temp_c);
       const cls = st.mode === 'cool' ? 'cool' : st.mode === 'heat' ? 'heat' : 'on';
       const mi = st.mode === 'cool' ? 'snow' : st.mode === 'heat' ? 'flame' : 'wind';
@@ -195,7 +195,7 @@ function deviceBody(d) {
 // The PV / grid power row shown under a solar mini-split's card.
 function solarExtra(d) {
   const st = d.state || {};
-  if (d.type !== 'solar_appliance' || !d.online || !st.power) return '';
+  if (d.type !== 'solar_ac' || !d.online || !st.power) return '';
   return `<div class="device-extra">
     <span class="ex solar">${icon('sun')}<b>${Math.round(st.solar_power_w || 0)}</b> W<small>solar</small></span>
     <span class="ex grid">${icon('bolt')}<b>${Math.round(st.grid_power_w || 0)}</b> W<small>AC</small></span>
@@ -262,7 +262,7 @@ function renderAbout() {
   const d = state.data;
   $('#aboutCard').innerHTML = `
     <h3>Private SmartMonitor</h3>
-    <p class="muted">A self-hosted controller for smart plugs, lights, switches, and climate devices — a sibling of the Solar Tracking Dashboard, running headless on the same Raspberry Pi.</p>
+    <p class="muted">A self-hosted controller for smart plugs, lights, switches, and A/C units — a sibling of the Solar Tracking Dashboard, running headless on the same Raspberry Pi.</p>
     <div class="kv"><b>Mode</b><span>${d.demo ? 'Demo (simulated fleet)' : 'Live'}</span></div>
     <div class="kv"><b>Devices</b><span>${d.devices.length}</span></div>
     <div class="kv"><b>API</b><span><code>/api/devices</code>, <code>/api/devices/{id}/command</code>, <code>/api/automations</code></span></div>
@@ -381,8 +381,8 @@ function renderSheet() {
   const st = d.state || {};
   let body = '';
 
-  if (d.type === 'climate' || d.type === 'solar_appliance') {
-    const isSolar = d.type === 'solar_appliance';
+  if (d.type === 'ac' || d.type === 'solar_ac') {
+    const isSolar = d.type === 'solar_ac';
     const frac = (o.setpoint - 16) / (30 - 16);
     const color = st.mode === 'heat' ? 'var(--amber)' : st.mode === 'cool' ? 'var(--sky)' : 'var(--accent)';
     const t = tempDisplay(o.setpoint);
@@ -460,7 +460,7 @@ function refreshSheetLive() {
     const softMax = Math.max(100, Math.ceil((w + 1) / 100) * 100);
     setDial(Math.min(1, w / softMax), 'var(--blue)', `${Math.round(w)}<small>W</small>`);
   }
-  if (d.type === 'solar_appliance') {
+  if (d.type === 'solar_ac') {
     const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
     set('saSolar', `${Math.round(st.solar_power_w || 0)} W`);
     set('saGrid', `${Math.round(st.grid_power_w || 0)} W`);
@@ -646,7 +646,7 @@ function renderDiscovery(res) {
 
 /* ---- sheet interactions --------------------------------------------------- */
 function sheetStep(delta) {
-  const o = state.open; if (!o || o.type !== 'climate') return;
+  const o = state.open; if (!o || (o.type !== 'ac' && o.type !== 'solar_ac')) return;
   o.setpoint = Math.max(16, Math.min(30, o.setpoint + delta));
   const d = deviceById(o.id); const st = d.state || {};
   const color = st.mode === 'heat' ? 'var(--amber)' : st.mode === 'cool' ? 'var(--sky)' : 'var(--accent)';

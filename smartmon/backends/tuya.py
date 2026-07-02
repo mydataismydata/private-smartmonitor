@@ -1,6 +1,6 @@
 """Tuya-local (LAN) backend — generalized from SolarPi's read-only mini-split
 client (appliance_client.py) into a read/write driver for plugs, lights, switches,
-and climate units.
+and A/C units.
 
 Same core moves as SolarPi: `tinytuya` is imported lazily (so the app runs without
 it until a real Tuya device is configured), blocking socket calls are pushed off the
@@ -23,15 +23,15 @@ from .base import Backend, Command, DeviceState
 # Default DP (datapoint) numbers per device type. Keys are our internal signal names.
 #   plug/switch DP 1 = switch; DP 19 = cur_power (deci-watts on most metering plugs)
 #   light       DP 20 = switch_led, 22 = bright_value_v2, 23 = temp_value_v2 (Tuya v2 range 10..1000)
-#   climate     DP 1 = switch, 4 = mode, 2 = temp_set, 3 = temp_current  (matches the EG4/Deye unit)
+#   ac          DP 1 = switch, 4 = mode, 2 = temp_set, 3 = temp_current  (matches the EG4/Deye unit)
 DEFAULT_DP: Dict[str, Dict[str, str]] = {
     "plug": {"power": "1", "power_w": "19"},
     "switch": {"power": "1"},
     "light": {"power": "20", "brightness": "22", "color_temp": "23"},
-    "climate": {"power": "1", "mode": "4", "setpoint": "2", "current_temp": "3"},
-    # EG4/Deye "Solar Aircon" mini-split: climate DPs + the LAN-only PV/grid metering block
+    "ac": {"power": "1", "mode": "4", "setpoint": "2", "current_temp": "3"},
+    # EG4/Deye "Solar Aircon" mini-split: A/C DPs + the LAN-only PV/grid metering block
     # (106 solar W, 111 grid/AC W, 108 solar %, 109 grid %). Matches SolarPi's appliance.py.
-    "solar_appliance": {
+    "solar_ac": {
         "power": "1", "mode": "4", "setpoint": "2", "current_temp": "3",
         "solar_power": "106", "grid_power": "111", "solar_percent": "108", "grid_percent": "109",
     },
@@ -40,13 +40,13 @@ DEFAULT_DP: Dict[str, Dict[str, str]] = {
 # Per-type default mode enum mapping (canonical -> device-native). The solar mini-split reports
 # cold/hot/wet/wind rather than cool/heat/dry/fan; a device can still override via options.mode_map.
 DEFAULT_MODE_MAP: Dict[str, Dict[str, str]] = {
-    "solar_appliance": {"cool": "cold", "heat": "hot", "dry": "wet", "fan": "wind"},
+    "solar_ac": {"cool": "cold", "heat": "hot", "dry": "wet", "fan": "wind"},
 }
 
 BRIGHT_SCALE_DEFAULT = 1000  # Tuya v2 lights use 10..1000; older lights use 255 (set options.bright_scale)
 BRIGHT_MIN = 10              # never send 0 as a brightness — that's what power=off is for
 POWER_DIVISOR_DEFAULT = 10  # DP 19 cur_power is usually tenths of a watt
-TEMP_DIVISOR_DEFAULT = 1    # most climate firmware reports whole degrees
+TEMP_DIVISOR_DEFAULT = 1    # most A/C firmware reports whole degrees
 
 
 # ---- pure codec ---------------------------------------------------------------

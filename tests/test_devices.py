@@ -37,6 +37,11 @@ class TestDeviceModel(unittest.TestCase):
         with self.assertRaises(DeviceConfigError):
             Device.from_dict({"id": "x", "type": "toaster"})
 
+    def test_legacy_type_names_are_aliased(self):
+        # A smartmon.json written before the rename still loads.
+        self.assertEqual(Device.from_dict({"id": "a", "type": "climate", "protocol": "demo"}).type, "ac")
+        self.assertEqual(Device.from_dict({"id": "b", "type": "solar_appliance", "protocol": "demo"}).type, "solar_ac")
+
     def test_missing_id_rejected(self):
         with self.assertRaises(DeviceConfigError):
             Device.from_dict({"type": "plug", "protocol": "demo"})
@@ -58,7 +63,7 @@ class TestDeviceModel(unittest.TestCase):
         self.assertEqual(ed["ip"], "10.0.0.9")
 
     def test_config_dict_round_trips(self):
-        raw = {"id": "c1", "name": "Climate", "type": "climate", "room": "Den", "protocol": "tuya",
+        raw = {"id": "c1", "name": "Climate", "type": "ac", "room": "Den", "protocol": "tuya",
                "ip": "10.0.0.5", "device_id": "did", "local_key": "lk", "version": 3.3,
                "dps": {"mode": "4"}, "options": {"mode_map": {"cool": "cold"}}}
         again = Device.from_dict(Device.from_dict(raw).to_config_dict())
@@ -95,8 +100,8 @@ class TestTuyaCodec(unittest.TestCase):
     def test_switch_encode_power(self):
         self.assertEqual(dict(tuya.encode(tuya_dev("switch"), {"power": True})), {"1": True})
 
-    def test_climate_mode_map_both_ways(self):
-        d = tuya_dev("climate", options={"mode_map": {"cool": "cold", "heat": "hot", "dry": "wet"}})
+    def test_ac_mode_map_both_ways(self):
+        d = tuya_dev("ac", options={"mode_map": {"cool": "cold", "heat": "hot", "dry": "wet"}})
         st = tuya.decode(d, {"1": True, "4": "cold", "2": 21, "3": 23})
         self.assertEqual(st.mode, "cool")
         self.assertEqual(st.setpoint_c, 21)
@@ -104,7 +109,7 @@ class TestTuyaCodec(unittest.TestCase):
         self.assertEqual(dict(tuya.encode(d, {"mode": "cool"}))["4"], "cold")
 
     def test_setpoint_encode_int(self):
-        self.assertEqual(dict(tuya.encode(tuya_dev("climate"), {"setpoint": 21}))["2"], 21)
+        self.assertEqual(dict(tuya.encode(tuya_dev("ac"), {"setpoint": 21}))["2"], 21)
 
     def test_dp_override_wins(self):
         self.assertEqual(tuya.dp_for(tuya_dev("plug", dps={"power": "7"}), "power"), "7")
@@ -114,12 +119,12 @@ class TestTuyaCodec(unittest.TestCase):
         self.assertEqual(tuya.encode(tuya_dev("switch"), {"brightness": 50}), [])
 
     def test_missing_dp_stays_none(self):
-        st = tuya.decode(tuya_dev("climate"), {"1": True})  # no temp DPs present
+        st = tuya.decode(tuya_dev("ac"), {"1": True})  # no temp DPs present
         self.assertIsNone(st.setpoint_c)
         self.assertIsNone(st.current_temp_c)
 
-    def test_solar_appliance_decodes_pv_and_grid(self):
-        d = tuya_dev("solar_appliance")
+    def test_solar_ac_decodes_pv_and_grid(self):
+        d = tuya_dev("solar_ac")
         st = tuya.decode(d, {"1": True, "4": "cold", "2": 16, "3": 16, "106": 659, "111": 40, "108": 94, "109": 6})
         self.assertTrue(st.power)
         self.assertEqual(st.mode, "cool")           # cold -> cool via the type's default mode_map
@@ -129,8 +134,8 @@ class TestTuyaCodec(unittest.TestCase):
         self.assertEqual(st.solar_percent, 94)
         self.assertEqual(st.grid_percent, 6)
 
-    def test_solar_appliance_mode_encode_uses_native_enum(self):
-        d = tuya_dev("solar_appliance")
+    def test_solar_ac_mode_encode_uses_native_enum(self):
+        d = tuya_dev("solar_ac")
         self.assertEqual(dict(tuya.encode(d, {"mode": "cool"}))["4"], "cold")
         self.assertEqual(dict(tuya.encode(d, {"mode": "heat"}))["4"], "hot")
 
@@ -159,8 +164,8 @@ class TestDemoBackend(unittest.TestCase):
         self.assertFalse(off.power)
         self.assertLess(off.power_w, 2)            # ~standby when off
 
-    def test_climate_setpoint_and_mode(self):
-        ac = Device(id="ac", name="AC", type="climate", protocol="demo",
+    def test_ac_setpoint_and_mode(self):
+        ac = Device(id="ac", name="AC", type="ac", protocol="demo",
                     options={"demo_mode": "cool", "demo_setpoint": 21})
         backend = DemoBackend([ac])
         asyncio.run(backend.apply(ac, {"mode": "heat", "setpoint": 24}))
@@ -168,8 +173,8 @@ class TestDemoBackend(unittest.TestCase):
         self.assertEqual(st.mode, "heat")
         self.assertEqual(st.setpoint_c, 24)
 
-    def test_demo_solar_appliance_reports_pv_and_grid(self):
-        ac = Device(id="ms", name="Mini-Split", type="solar_appliance", protocol="demo",
+    def test_demo_solar_ac_reports_pv_and_grid(self):
+        ac = Device(id="ms", name="Mini-Split", type="solar_ac", protocol="demo",
                     options={"demo_solar": 659, "demo_grid": 40})
         st = asyncio.run(DemoBackend([ac]).read(ac))
         self.assertTrue(st.power)

@@ -20,11 +20,11 @@ class DeviceState:
     power: Optional[bool] = None
     brightness: Optional[int] = None      # 0-100
     color_temp: Optional[int] = None      # 0-100 (warm -> cool)
-    mode: Optional[str] = None            # canonical CLIMATE_MODES value
+    mode: Optional[str] = None            # canonical AC_MODES value
     setpoint_c: Optional[float] = None    # target temperature, deg C
     current_temp_c: Optional[float] = None  # measured temperature, deg C
     power_w: Optional[float] = None       # instantaneous draw, watts (plugs)
-    # Solar mini-split metering (solar_appliance): PV vs. grid power + their % split.
+    # Solar mini-split metering (solar_ac): PV vs. grid power + their % split.
     solar_power_w: Optional[float] = None
     grid_power_w: Optional[float] = None
     solar_percent: Optional[int] = None

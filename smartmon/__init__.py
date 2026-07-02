@@ -1,5 +1,5 @@
 """Private SmartMonitor — a self-hosted controller for smart plugs, lights,
-switches, and climate devices, running headless on a Raspberry Pi.
+switches, and A/C units, running headless on a Raspberry Pi.
 
 It's a sibling of the Solar Tracking Dashboard ("SolarPi") and shares its shape:
 a FastAPI server that runs a background poll loop and serves a static dashboard.

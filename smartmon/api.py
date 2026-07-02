@@ -20,7 +20,7 @@ def device_payload(device: Device, poller: DevicePoller) -> Dict[str, object]:
     out["state"] = (st or DeviceState()).to_dict()
     out["online"] = bool(st.online) if st else False
     out["last_ts"] = poller.last_ts.get(device.id)
-    if device.type in ("climate", "solar_appliance"):
+    if device.type in ("ac", "solar_ac"):  # the compressor-protected types
         out["power_cooldown"] = poller.power_cooldown_remaining(device)
         out["mode_cooldown"] = poller.mode_cooldown_remaining(device)
     return out
