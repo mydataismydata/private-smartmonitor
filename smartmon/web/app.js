@@ -58,25 +58,32 @@ const MODES = [
 ];
 
 /* ---- state ---------------------------------------------------------------- */
+const SETTINGS_V = 2;  // bumped when defaults change; pre-v2 saves are re-defaulted (F is now default)
+
 const state = {
   data: { devices: [], rooms: [], summary: {}, demo: false },
   automations: [],
   view: 'home',
-  open: null,     // { id, type, setpoint, brightness }
+  open: null,     // { id, type, setpoint, brightness, mode, power }
   settings: loadSettings(),
   timer: null,
+  cdTimer: null,      // 1s ticker for the compressor cooldown countdown
+  cdDeadline: 0,      // wall-clock ms when the current cooldown ends
 };
 
 function loadSettings() {
   let s = {};
   try { s = JSON.parse(localStorage.getItem('smartmon') || '{}'); } catch (_) {}
+  const current = s.v === SETTINGS_V;
   return {
     theme: s.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
-    fahrenheit: !!s.fahrenheit,
+    // Fahrenheit is the default. Honor an explicit choice only from a current-version save;
+    // anything older (when Celsius was the default) resets to F.
+    fahrenheit: current ? !!s.fahrenheit : true,
     autoRefresh: s.autoRefresh !== false,
   };
 }
-function saveSettings() { localStorage.setItem('smartmon', JSON.stringify(state.settings)); }
+function saveSettings() { localStorage.setItem('smartmon', JSON.stringify({ v: SETTINGS_V, ...state.settings })); }
 
 /* ---- api ------------------------------------------------------------------ */
 async function api(path, opts) {
@@ -362,11 +369,43 @@ function openSheet(id) {
     setpoint: st.setpoint_c != null ? Math.round(st.setpoint_c) : 21,
     brightness: st.brightness != null ? st.brightness : 100,
     colorTemp: st.color_temp != null ? st.color_temp : 50,
+    mode: st.mode || 'cool',   // local UI intent — the device's own report can lag a few seconds
+    power: !!st.power,
   };
   $('#modal').hidden = false;
   renderSheet();
 }
-function closeSheet() { $('#modal').hidden = true; state.open = null; }
+function closeSheet() { $('#modal').hidden = true; state.open = null; clearInterval(state.cdTimer); state.cdTimer = null; state.cdDeadline = 0; }
+
+function fmtCooldown(sec) {
+  sec = Math.max(0, Math.round(sec));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+// Live 1-second countdown for the compressor cooldown note. Anchored to a wall-clock deadline so
+// a re-render mid-cooldown (e.g. tapping another mode) keeps counting smoothly instead of jumping.
+// The server's remaining-seconds are stale between 5s polls, so only adopt a new deadline when it's
+// meaningfully later (a genuinely fresh cooldown), not on every re-render.
+function startCooldown(total) {
+  const now = Date.now();
+  const candidate = now + Math.round(total) * 1000;
+  if (!state.cdDeadline || state.cdDeadline <= now || candidate > state.cdDeadline + 10000) {
+    state.cdDeadline = candidate;
+  }
+  clearInterval(state.cdTimer);
+  const tick = () => {
+    const el = document.getElementById('cdLeft');
+    if (!el) { clearInterval(state.cdTimer); state.cdTimer = null; return; }
+    const left = Math.round((state.cdDeadline - Date.now()) / 1000);
+    if (left <= 0) {
+      clearInterval(state.cdTimer); state.cdTimer = null; state.cdDeadline = 0;
+      const note = el.closest('.cooldown-note'); if (note) note.remove();
+      return;
+    }
+    el.textContent = fmtCooldown(left);
+  };
+  tick();
+  state.cdTimer = setInterval(tick, 1000);
+}
 
 function powerRow(d, st) {
   return `<div class="sheet-power">
@@ -383,8 +422,9 @@ function renderSheet() {
 
   if (d.type === 'ac' || d.type === 'solar_ac') {
     const isSolar = d.type === 'solar_ac';
+    const on = o.power;                              // local intent, so the UI updates instantly
     const frac = (o.setpoint - 16) / (30 - 16);
-    const color = st.mode === 'heat' ? 'var(--amber)' : st.mode === 'cool' ? 'var(--sky)' : 'var(--accent)';
+    const color = o.mode === 'heat' ? 'var(--amber)' : o.mode === 'cool' ? 'var(--sky)' : 'var(--accent)';
     const t = tempDisplay(o.setpoint);
     const room = tempDisplay(st.current_temp_c);
     const cd = d.power_cooldown || d.mode_cooldown || 0;
@@ -397,18 +437,18 @@ function renderSheet() {
         ${st.solar_percent != null ? `<div class="solar-split"><span id="saBar" style="width:${st.solar_percent}%"></span></div><div class="solar-split-lbl" id="saPct">${st.solar_percent}% of load from solar</div>` : ''}`
       : `<div class="sheet-foot">
           <div><span class="fi">${icon('thermo')}</span><span><span class="fv">${room.v}${room.u}</span><div class="fl">Room temp</div></span></div>
-          <div><span class="fi">${icon('wind')}</span><span><span class="fv">${cap(st.mode || '—')}</span><div class="fl">Mode</div></span></div>
+          <div><span class="fi">${icon('wind')}</span><span><span class="fv">${on ? cap(o.mode) : 'Off'}</span><div class="fl">Mode</div></span></div>
         </div>`;
     body = `
       ${dialHTML(frac, color, `<div class="dial-ic">${icon('thermo')}</div><div class="dial-val" id="dialVal">${t.v}<small>${t.u}</small></div><div class="dial-cap">Setpoint</div>`)}
       <div class="stepper">
-        <button class="step-btn" data-step="-1" ${st.power ? '' : 'disabled'}>${icon('minus')}</button>
-        <button class="step-btn" data-step="1" ${st.power ? '' : 'disabled'}>${icon('plus')}</button>
+        <button class="step-btn" data-step="-1" ${on ? '' : 'disabled'}>${icon('minus')}</button>
+        <button class="step-btn" data-step="1" ${on ? '' : 'disabled'}>${icon('plus')}</button>
       </div>
-      ${cd ? `<div class="cooldown-note">Compressor cooldown — ${cd}s left</div>` : ''}
+      ${cd ? `<div class="cooldown-note">Compressor cooldown — <span id="cdLeft">${fmtCooldown(cd)}</span> left</div>` : ''}
       <div class="modes">
-        ${MODES.map((m) => `<button class="mode-btn ${st.power && st.mode === m.m ? 'active' : ''}" data-mode="${m.m}">${icon(m.ic)}<span>${m.label}</span></button>`).join('')}
-        <button class="mode-btn ${!st.power ? 'active' : ''}" data-mode="off" style="${!st.power ? 'background:var(--ink-3);border-color:var(--ink-3);color:#fff' : ''}">${icon('power')}<span>Off</span></button>
+        ${MODES.map((m) => `<button class="mode-btn ${on && o.mode === m.m ? 'active' : ''}" data-mode="${m.m}">${icon(m.ic)}<span>${m.label}</span></button>`).join('')}
+        <button class="mode-btn ${!on ? 'active' : ''}" data-mode="off" style="${!on ? 'background:var(--ink-3);border-color:var(--ink-3);color:#fff' : ''}">${icon('power')}<span>Off</span></button>
       </div>
       ${foot}`;
   } else if (d.type === 'light') {
@@ -448,6 +488,11 @@ function renderSheet() {
         <button class="sheet-close" data-close>${icon('close')}</button>
       </div>
     </div>${body}`;
+
+  // (Re)start the live compressor-cooldown countdown, if any.
+  const cd = (d.type === 'ac' || d.type === 'solar_ac') ? (d.power_cooldown || d.mode_cooldown || 0) : 0;
+  if (cd > 0) startCooldown(cd);
+  else { clearInterval(state.cdTimer); state.cdTimer = null; }
 }
 
 /* live-value refresh for an open sheet without clobbering user edits */
@@ -477,6 +522,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').repla
 
 function showModal(html) {
   state.open = null;              // not a control sheet — pauses live refresh
+  clearInterval(state.cdTimer); state.cdTimer = null;
   $('#sheet').innerHTML = html;
   $('#modal').hidden = false;
 }
@@ -648,8 +694,7 @@ function renderDiscovery(res) {
 function sheetStep(delta) {
   const o = state.open; if (!o || (o.type !== 'ac' && o.type !== 'solar_ac')) return;
   o.setpoint = Math.max(16, Math.min(30, o.setpoint + delta));
-  const d = deviceById(o.id); const st = d.state || {};
-  const color = st.mode === 'heat' ? 'var(--amber)' : st.mode === 'cool' ? 'var(--sky)' : 'var(--accent)';
+  const color = o.mode === 'heat' ? 'var(--amber)' : o.mode === 'cool' ? 'var(--sky)' : 'var(--accent)';
   const t = tempDisplay(o.setpoint);
   setDial((o.setpoint - 16) / 14, color, `${t.v}<small>${t.u}</small>`);
   clearTimeout(sheetStep._t);
@@ -658,8 +703,13 @@ function sheetStep(delta) {
 
 async function sheetMode(mode) {
   const o = state.open; if (!o) return;
-  if (mode === 'off') return sendCommand(o.id, { power: false }).then(renderSheet);
-  await sendCommand(o.id, { power: true, mode });
+  const prevMode = o.mode, prevPower = o.power;
+  // Reflect the selection immediately — the device's own status() can lag a few seconds.
+  if (mode === 'off') o.power = false;
+  else { o.power = true; o.mode = mode; }
+  renderSheet();
+  const res = await sendCommand(o.id, mode === 'off' ? { power: false } : { power: true, mode });
+  if (!res || !res.ok) { o.mode = prevMode; o.power = prevPower; }  // rejected (e.g. cooldown) -> revert
   renderSheet();
 }
 
