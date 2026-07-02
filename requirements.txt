@@ -7,7 +7,7 @@ uvicorn[standard]>=0.29
 zeroconf>=0.131
 
 # Tuya-local device control (plugs / lights / switches / climate). Optional and imported
-# lazily — the app runs without it until a real Tuya device is configured in devices.json.
+# lazily — the app runs without it until a real Tuya device is configured in smartmon.json.
 # Install on the Pi when you add hardware:  pip install tinytuya
 # tinytuya>=1.13
 

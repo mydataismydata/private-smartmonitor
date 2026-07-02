@@ -49,6 +49,24 @@ class TestDeviceModel(unittest.TestCase):
             self.assertNotIn(leaked, pub)
         self.assertEqual(pub["capabilities"], ["power", "energy"])
 
+    def test_editable_dict_omits_key_but_flags_it(self):
+        d = Device.from_dict({"id": "p1", "type": "light", "protocol": "tuya",
+                              "ip": "10.0.0.9", "device_id": "id", "local_key": "key"})
+        ed = d.editable_dict()
+        self.assertNotIn("local_key", ed)
+        self.assertTrue(ed["has_local_key"])
+        self.assertEqual(ed["ip"], "10.0.0.9")
+
+    def test_config_dict_round_trips(self):
+        raw = {"id": "c1", "name": "Climate", "type": "climate", "room": "Den", "protocol": "tuya",
+               "ip": "10.0.0.5", "device_id": "did", "local_key": "lk", "version": 3.3,
+               "dps": {"mode": "4"}, "options": {"mode_map": {"cool": "cold"}}}
+        again = Device.from_dict(Device.from_dict(raw).to_config_dict())
+        self.assertEqual(again.id, "c1")
+        self.assertEqual(again.local_key, "lk")
+        self.assertEqual(again.dps, {"mode": "4"})
+        self.assertEqual(again.options, {"mode_map": {"cool": "cold"}})
+
 
 class TestTuyaCodec(unittest.TestCase):
     def test_plug_decode_power_and_watts(self):

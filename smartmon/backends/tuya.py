@@ -10,7 +10,7 @@ read against control writes on that device's single socket.
 The codec (dp_for / decode / encode) is pure and lives up top so it unit-tests on a
 bare Python — no tinytuya, no network. Tuya DP numbers vary by firmware; the DEFAULT_DP
 map covers the common cases and any device can override per-signal via its `dps` block
-and scaling via its `options` block in devices.json.
+and scaling via its `options` block in smartmon.json.
 """
 from __future__ import annotations
 

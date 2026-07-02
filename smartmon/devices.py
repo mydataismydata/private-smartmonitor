@@ -38,7 +38,7 @@ PROTOCOLS = ("demo", "tuya")
 
 
 class DeviceConfigError(ValueError):
-    """A device entry in devices.json is missing something required or is malformed."""
+    """A device entry in smartmon.json is missing something required or is malformed."""
 
 
 @dataclass
@@ -78,7 +78,7 @@ class Device:
 
     @classmethod
     def from_dict(cls, raw: Dict[str, object]) -> "Device":
-        """Build (and validate) a Device from one devices.json entry."""
+        """Build (and validate) a Device from one smartmon.json entry."""
         if not isinstance(raw, dict):
             raise DeviceConfigError(f"device entry must be an object, got {type(raw).__name__}")
         dev_id = str(raw.get("id") or "").strip()
@@ -121,6 +121,35 @@ class Device:
             "protocol": self.protocol,
             "capabilities": list(self.capabilities),
         }
+
+    def to_config_dict(self) -> Dict[str, object]:
+        """The full record as it belongs in smartmon.json — including the secrets. Round-trips
+        with from_dict(). Used to persist edits made in the UI back to disk."""
+        out: Dict[str, object] = {
+            "id": self.id,
+            "name": self.name,
+            "type": self.type,
+            "room": self.room,
+            "protocol": self.protocol,
+        }
+        if self.protocol == "tuya":
+            out["ip"] = self.ip
+            out["device_id"] = self.device_id
+            out["local_key"] = self.local_key
+            out["version"] = self.version
+        if self.dps:
+            out["dps"] = dict(self.dps)
+        if self.options:
+            out["options"] = dict(self.options)
+        return out
+
+    def editable_dict(self) -> Dict[str, object]:
+        """Config for the edit form: everything except the local key (never sent to the browser),
+        plus a flag saying whether a key is on file so the form can show 'leave blank to keep'."""
+        cfg = self.to_config_dict()
+        cfg.pop("local_key", None)
+        cfg["has_local_key"] = bool(self.local_key)
+        return cfg
 
 
 def rooms_of(devices: List[Device]) -> List[str]:

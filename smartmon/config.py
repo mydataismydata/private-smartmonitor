@@ -1,10 +1,11 @@
 """Runtime configuration from environment variables (12-factor style), mirroring
 SolarPi's config.py.
 
-Everything has a sane default, and the big one is DEMO: with no devices.json on
+Everything has a sane default, and the big one is DEMO: with no smartmon.json on
 disk the app runs an in-memory demo fleet, so `uvicorn smartmon.server:app` just
-works with no hardware. On the Pi, drop a devices.json next to the app (see
-devices.example.json) and it switches to the real backends automatically.
+works with no hardware. On the Pi, drop a smartmon.json next to the app (see
+smartmon.example.json) or add devices from the dashboard, and it switches to the
+real backends automatically.
 """
 from __future__ import annotations
 
@@ -20,8 +21,10 @@ def _flag(name: str, default: str = "0") -> bool:
 class Config:
     # Where the device fleet is defined. Relative paths resolve against the CWD
     # (the service's WorkingDirectory on the Pi). Missing file -> demo mode.
-    devices_file: str = "devices.json"
-    # Force the in-memory demo fleet even if a devices.json exists (handy for a
+    # NB: intentionally NOT "devices.json" — that's tinytuya's own file name, and sharing it would
+    # let `tinytuya wizard`/`scan` read or overwrite the user's fleet. Keep them separate.
+    devices_file: str = "smartmon.json"
+    # Force the in-memory demo fleet even if a smartmon.json exists (handy for a
     # UI demo on your laptop). Auto-on when devices_file is absent.
     demo: bool = False
     # How often the poll loop refreshes every device's state.

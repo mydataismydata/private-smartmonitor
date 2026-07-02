@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy this to devices.json and fill in your own devices. devices.json is git-ignored because it holds Tuya local keys. Extract each device's id + local key once with `tinytuya wizard` (see the README). Only 'ip', 'device_id', and 'local_key' are required per Tuya device; 'dps' and 'options' override the type defaults only when a device deviates from them.",
+  "_comment": "Copy this to smartmon.json and fill in your own devices — or just add them from the dashboard (Add device / Scan network). smartmon.json is git-ignored because it holds Tuya local keys, and it is deliberately NOT named devices.json so tinytuya's wizard/scan can't read or overwrite it. Extract each device's local key once with `tinytuya wizard` (see the README). Only 'ip', 'device_id', and 'local_key' are required per Tuya device; 'dps' and 'options' override the type defaults only when a device deviates from them.",
 
   "devices": [
     {

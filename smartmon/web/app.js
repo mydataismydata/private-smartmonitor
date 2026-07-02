@@ -32,11 +32,21 @@ const ICONS = {
   clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
   pin: '<path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
   offline: '<line x1="2" y1="2" x2="22" y2="22"/><path d="M16.7 11.3A6 6 0 0 1 20 12M5 12a11 11 0 0 1 6.5-3.1M9 16a4 4 0 0 1 5 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
+  pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  trash: '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/>',
+  search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
 };
 const icon = (name, cls) =>
   `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`;
 
 const TYPE_ICON = { light: 'bulb', plug: 'plug', switch: 'power', climate: 'thermo' };
+const TYPES = [
+  { t: 'plug', label: 'Plug', ic: 'plug' },
+  { t: 'light', label: 'Light', ic: 'bulb' },
+  { t: 'switch', label: 'Switch', ic: 'power' },
+  { t: 'climate', label: 'Climate', ic: 'thermo' },
+];
 const MODES = [
   { m: 'cool', ic: 'snow', label: 'Cool' },
   { m: 'heat', ic: 'flame', label: 'Heat' },
@@ -74,6 +84,9 @@ async function api(path, opts) {
 }
 const post = (path, body) =>
   api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const put = (path, body) =>
+  api(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const del = (path) => api(path, { method: 'DELETE' });
 
 function deviceById(id) { return state.data.devices.find((d) => d.id === id); }
 
@@ -194,7 +207,6 @@ function deviceCard(d) {
 
 function renderRooms() {
   const { devices, rooms } = state.data;
-  $('#homeEmpty').hidden = devices.length > 0;
   $('#rooms').innerHTML = rooms.map((room) => {
     const inRoom = devices.filter((d) => d.room === room);
     if (!inRoom.length) return '';
@@ -243,6 +255,35 @@ function renderAbout() {
     <div class="kv"><b>Discovery</b><span><code>_smartmon._tcp</code> over mDNS</span></div>`;
 }
 
+/* ---- render: banner + onboarding ------------------------------------------ */
+function renderBanner() {
+  const b = $('#demoBanner');
+  if (!state.data.demo) { b.hidden = true; return; }
+  b.hidden = false;
+  b.innerHTML = `
+    <span class="b-ic">${icon('chip')}</span>
+    <span class="b-txt"><b>Demo mode</b><div>The devices below are simulated. Add one of your real devices to get started.</div></span>
+    <span class="b-actions">
+      <button class="btn" data-scan>${icon('search')}<span>Scan network</span></button>
+      <button class="btn-primary" data-add-manual>${icon('plus')}<span>Add device</span></button>
+    </span>`;
+}
+
+function renderOnboard() {
+  const o = $('#homeEmpty');
+  const show = !state.data.demo && state.data.devices.length === 0;
+  o.hidden = !show;
+  if (!show) return;
+  o.innerHTML = `
+    <div class="o-ic">${icon('chip')}</div>
+    <h2>No devices yet</h2>
+    <p>Scan your network to find smart devices automatically, or add one by hand. You'll paste each device's local key once (from <code>tinytuya&nbsp;wizard</code>).</p>
+    <div class="o-actions">
+      <button class="btn-primary" data-scan>${icon('search')}<span>Scan network</span></button>
+      <button class="btn" data-add-manual>${icon('plus')}<span>Add manually</span></button>
+    </div>`;
+}
+
 /* ---- render: dispatch ----------------------------------------------------- */
 function renderAll() {
   const d = state.data;
@@ -250,10 +291,12 @@ function renderAll() {
   const s = d.summary || {};
   $('#subgreeting').textContent = d.devices.length
     ? `You have ${s.on ?? 0} of ${s.total ?? 0} device${s.total === 1 ? '' : 's'} currently on.`
-    : 'No devices configured yet.';
+    : (d.demo ? 'Exploring the demo fleet.' : 'No devices yet — add your first one.');
   $('#demoBadge').hidden = !d.demo;
+  renderBanner();
   renderStats();
   renderRooms();
+  renderOnboard();
   renderAbout();
   if (state.open) refreshSheetLive();
 }
@@ -373,10 +416,14 @@ function renderSheet() {
       ${powerRow(d, st)}`;
   }
 
+  const editable = !state.data.demo;
   $('#sheet').innerHTML = `
     <div class="sheet-head">
       <div><div class="sheet-title">${d.name}</div><div class="sheet-sub">${d.room}${d.online ? '' : ' · offline'}</div></div>
-      <button class="sheet-close" data-close>${icon('close')}</button>
+      <div class="sheet-actions">
+        ${editable ? `<button class="sheet-icon" data-edit-device="${d.id}" title="Edit device">${icon('pencil')}</button>` : ''}
+        <button class="sheet-close" data-close>${icon('close')}</button>
+      </div>
     </div>${body}`;
 }
 
@@ -390,6 +437,178 @@ function refreshSheetLive() {
     const softMax = Math.max(100, Math.ceil((w + 1) / 100) * 100);
     setDial(Math.min(1, w / softMax), 'var(--blue)', `${Math.round(w)}<small>W</small>`);
   }
+}
+
+/* ---- add / edit device form ----------------------------------------------- */
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+function showModal(html) {
+  state.open = null;              // not a control sheet — pauses live refresh
+  $('#sheet').innerHTML = html;
+  $('#modal').hidden = false;
+}
+
+function slugify(s) {
+  return (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'device';
+}
+function uniqueId(base) {
+  const ids = new Set(state.data.devices.map((d) => d.id));
+  if (!ids.has(base)) return base;
+  let n = 2; while (ids.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
+function openAddForm(prefill) { renderDeviceForm({ mode: 'add', data: prefill || {} }); }
+
+async function openEditForm(id) {
+  try {
+    const cfg = await api(`/api/devices/${id}/config`);
+    if (!cfg.available) return toast('Device not found', true);
+    renderDeviceForm({ mode: 'edit', id, data: cfg });
+  } catch (_) { toast('Could not load device', true); }
+}
+
+function renderDeviceForm({ mode, id, data }) {
+  data = data || {};
+  const type = data.type || 'plug';
+  const rooms = (state.data.rooms || []).filter((r) => r && r !== 'Unassigned');
+  const keyHint = (mode === 'edit' && data.has_local_key) ? 'leave blank to keep current key' : '16-character local key';
+  showModal(`
+    <div class="sheet-head">
+      <div><div class="sheet-title">${mode === 'edit' ? 'Edit device' : 'Add device'}</div>
+        <div class="sheet-sub">${mode === 'edit' ? esc(data.id) : 'Tuya-local (LAN) device'}</div></div>
+      <button class="sheet-close" data-close>${icon('close')}</button>
+    </div>
+    <div class="form">
+      <div class="form-row">
+        <label>Type</label>
+        <div class="type-pick" id="typePick">
+          ${TYPES.map((t) => `<button type="button" data-type="${t.t}" class="${t.t === type ? 'active' : ''}">${icon(t.ic)}<span>${t.label}</span></button>`).join('')}
+        </div>
+        <input type="hidden" id="f_type" value="${type}" />
+      </div>
+      <div class="form-row">
+        <label>Name <span class="req">*</span></label>
+        <input id="f_name" value="${esc(data.name)}" placeholder="e.g. Living Room Lamp" />
+      </div>
+      <div class="form-row">
+        <label>Room</label>
+        <input id="f_room" value="${esc(data.room)}" placeholder="e.g. Living Room" list="roomList" />
+        <datalist id="roomList">${rooms.map((r) => `<option value="${esc(r)}"></option>`).join('')}</datalist>
+      </div>
+      <div class="form-row split">
+        <div class="form-row"><label>IP address <span class="req">*</span></label><input id="f_ip" value="${esc(data.ip)}" placeholder="192.168.1.50" /></div>
+        <div class="form-row"><label>Version</label><input id="f_version" value="${esc(data.version || 3.3)}" placeholder="3.3" /></div>
+      </div>
+      <div class="form-row">
+        <label>Device ID <span class="req">*</span></label>
+        <input id="f_device_id" value="${esc(data.device_id)}" placeholder="Tuya device id (gwId)" />
+      </div>
+      <div class="form-row">
+        <label>Local key ${mode === 'edit' ? '' : '<span class="req">*</span>'}</label>
+        <input id="f_local_key" type="password" placeholder="${keyHint}" autocomplete="off" />
+        <span class="hint">From <code>tinytuya wizard</code> — stored only on this server.</span>
+      </div>
+      <button class="adv-toggle" data-adv>Advanced · DP / option overrides</button>
+      <div class="adv" id="advBox" hidden>
+        <div class="form-row"><label>DP overrides (JSON)</label><textarea id="f_dps" placeholder='{"power":"1","brightness":"2"}'>${esc(data.dps ? JSON.stringify(data.dps) : '')}</textarea></div>
+        <div class="form-row"><label>Options (JSON)</label><textarea id="f_options" placeholder='{"bright_scale":255}'>${esc(data.options ? JSON.stringify(data.options) : '')}</textarea></div>
+      </div>
+      <div class="form-error" id="formError"></div>
+      <div class="form-actions">
+        ${mode === 'edit'
+          ? `<button class="btn-danger" data-remove="${esc(data.id)}">${icon('trash')}<span>Remove</span></button>`
+          : `<button class="btn" data-scan>${icon('search')}<span>Scan</span></button>`}
+        <span class="spacer"></span>
+        <button class="btn-ghost" data-close>Cancel</button>
+        <button class="btn-primary" data-save="${mode}" ${mode === 'edit' ? `data-id="${esc(data.id)}"` : ''}>${mode === 'edit' ? 'Save' : 'Add device'}</button>
+      </div>
+    </div>`);
+}
+
+function collectForm() {
+  const val = (id) => { const el = $('#' + id); return el ? el.value.trim() : ''; };
+  const body = {
+    type: val('f_type'),
+    name: val('f_name'),
+    room: val('f_room'),
+    protocol: 'tuya',
+    ip: val('f_ip'),
+    device_id: val('f_device_id'),
+    version: parseFloat(val('f_version')) || 3.3,
+  };
+  const key = val('f_local_key');
+  if (key) body.local_key = key;
+  const dps = val('f_dps'), opt = val('f_options');
+  if (dps) body.dps = JSON.parse(dps);       // may throw -> caught by caller
+  if (opt) body.options = JSON.parse(opt);
+  return body;
+}
+
+async function submitDeviceForm(mode, id) {
+  const err = $('#formError'); err.textContent = '';
+  let body;
+  try { body = collectForm(); }
+  catch (_) { err.textContent = 'Advanced fields must be valid JSON.'; return; }
+  if (!body.name) { err.textContent = 'Give the device a name.'; return; }
+  if (!body.ip || !body.device_id || (mode === 'add' && !body.local_key)) {
+    err.textContent = 'IP, device ID, and local key are required.'; return;
+  }
+  let res;
+  try {
+    if (mode === 'add') { body.id = uniqueId(slugify(body.name)); res = await post('/api/devices', body); }
+    else { res = await put(`/api/devices/${id}`, body); }
+  } catch (_) { err.textContent = 'Request failed.'; return; }
+  if (res && res.ok) {
+    closeSheet(); await refresh();
+    toast(mode === 'add' ? 'Device added' : 'Device saved');
+  } else {
+    err.textContent = (res && res.error) || 'Could not save the device.';
+  }
+}
+
+async function removeDevice(id) {
+  if (!confirm('Remove this device? This only deletes it from SmartMonitor, not the device itself.')) return;
+  try {
+    const res = await del(`/api/devices/${id}`);
+    if (res && res.ok) { closeSheet(); await refresh(); toast('Device removed'); }
+    else toast((res && res.error) || 'Could not remove device', true);
+  } catch (_) { toast('Could not remove device', true); }
+}
+
+/* ---- discovery ------------------------------------------------------------ */
+async function openDiscovery() {
+  showModal(`
+    <div class="sheet-head">
+      <div><div class="sheet-title">Scan for devices</div><div class="sheet-sub">Tuya devices on your network</div></div>
+      <button class="sheet-close" data-close>${icon('close')}</button>
+    </div>
+    <div class="disco-status"><span class="disco-spin"></span> Scanning your local network…</div>
+    <div class="disco-list" id="discoList"></div>`);
+  try { renderDiscovery(await api('/api/discover')); }
+  catch (_) { renderDiscovery({ available: false, error: 'scan failed' }); }
+}
+
+function renderDiscovery(res) {
+  const status = $('.disco-status'), list = $('#discoList');
+  if (!status) return;  // modal was closed while scanning
+  if (!res.available) {
+    status.innerHTML = `${icon('offline')} Discovery unavailable — ${esc(res.error || 'tinytuya not installed on the server')}.`;
+    list.innerHTML = `<button class="btn-primary" data-add-manual>${icon('plus')}<span>Add manually instead</span></button>`;
+    return;
+  }
+  const devs = res.devices || [];
+  status.textContent = devs.length ? `Found ${devs.length} device${devs.length > 1 ? 's' : ''} on the network.` : 'No Tuya devices found on the network.';
+  list.innerHTML = devs.map((d) => {
+    const payload = encodeURIComponent(JSON.stringify({ ip: d.ip, device_id: d.device_id, version: d.version }));
+    return `<div class="disco-item ${d.configured ? 'configured' : ''}">
+      <span class="d-ic">${icon('plug')}</span>
+      <span class="d-meta"><div class="d-ip">${esc(d.ip)}</div><div class="d-id">${esc(d.device_id || 'unknown id')}</div></span>
+      ${d.configured
+        ? `<span class="tag-added">${icon('power')} Added</span>`
+        : `<button class="btn" data-disco-use="${payload}">Use</button>`}
+    </div>`;
+  }).join('') + `<button class="btn-ghost" data-add-manual style="align-self:center;margin-top:6px">Add manually instead</button>`;
 }
 
 /* ---- sheet interactions --------------------------------------------------- */
@@ -419,6 +638,24 @@ function bindSheetEvents() {
     if (step) return sheetStep(Number(step.dataset.step));
     const mode = e.target.closest('[data-mode]');
     if (mode) return sheetMode(mode.dataset.mode);
+    // management actions
+    const edit = e.target.closest('[data-edit-device]');
+    if (edit) return openEditForm(edit.dataset.editDevice);
+    const typeBtn = e.target.closest('[data-type]');
+    if (typeBtn) {
+      $$('#typePick [data-type]').forEach((b) => b.classList.toggle('active', b === typeBtn));
+      $('#f_type').value = typeBtn.dataset.type;
+      return;
+    }
+    if (e.target.closest('[data-adv]')) { const a = $('#advBox'); if (a) a.hidden = !a.hidden; return; }
+    const save = e.target.closest('[data-save]');
+    if (save) return submitDeviceForm(save.dataset.save, save.dataset.id);
+    const rm = e.target.closest('[data-remove]');
+    if (rm) return removeDevice(rm.dataset.remove);
+    const use = e.target.closest('[data-disco-use]');
+    if (use) return openAddForm(JSON.parse(decodeURIComponent(use.dataset.discoUse)));
+    if (e.target.closest('[data-scan]')) return openDiscovery();
+    if (e.target.closest('[data-add-manual]')) return openAddForm({});
   });
   sheet.addEventListener('change', (e) => {
     const o = state.open; if (!o) return;
@@ -508,6 +745,13 @@ function bindEvents() {
     if (t) { const card = e.target.closest('[data-auto]'); toggleAutomation(card.dataset.auto, e.target.checked, e.target); }
   });
 
+  // add-device button + the banner / onboarding calls-to-action
+  $('#addBtn').addEventListener('click', () => openAddForm({}));
+  $('#view-home').addEventListener('click', (e) => {
+    if (e.target.closest('[data-scan]')) return openDiscovery();
+    if (e.target.closest('[data-add-manual]')) return openAddForm({});
+  });
+
   $('#themeBtn').addEventListener('click', () => {
     state.settings.theme = state.settings.theme === 'dark' ? 'light' : 'dark';
     saveSettings(); applyTheme();
@@ -522,7 +766,7 @@ function bindEvents() {
   $('#setFahrenheit').addEventListener('change', (e) => { state.settings.fahrenheit = e.target.checked; saveSettings(); renderAll(); if (state.open) renderSheet(); });
   $('#setAutoRefresh').addEventListener('change', (e) => { state.settings.autoRefresh = e.target.checked; saveSettings(); startPolling(); });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.open) closeSheet(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#modal').hidden) closeSheet(); });
 
   bindSheetEvents();
 }

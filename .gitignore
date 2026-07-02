@@ -7,8 +7,13 @@ venv/
 .pytest_cache/
 
 # Local device fleet — HOLDS SECRETS (Tuya local keys / device ids). Never commit it.
-# Commit devices.example.json instead; each deployment keeps its own devices.json.
+# Commit smartmon.example.json instead; each deployment keeps its own smartmon.json.
+smartmon.json
+
+# tinytuya's own files, in case `tinytuya wizard`/`scan` is ever run inside the repo.
 devices.json
+snapshot.json
+tinytuya.json
 
 # Local data / runtime
 *.sqlite

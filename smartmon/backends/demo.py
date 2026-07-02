@@ -80,7 +80,7 @@ class DemoBackend(Backend):
 
 
 # A small, opinionated demo fleet spanning every device type and a few rooms — enough
-# to populate the dashboard the way the mockups look. Used when no devices.json exists.
+# to populate the dashboard the way the mockups look. Used when no smartmon.json exists.
 def demo_devices() -> list:
     specs = [
         ("living-lamp", "Living Room Lamp", "light", "Living Room", {"demo_brightness": 72}),

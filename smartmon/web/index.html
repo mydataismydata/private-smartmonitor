@@ -37,6 +37,7 @@
           <p class="muted" id="subgreeting">Loading your devices…</p>
         </div>
         <div class="ph-right">
+          <button class="btn-primary" id="addBtn" title="Add a device"><span data-ic="plus"></span><span>Add device</span></button>
           <div class="clock" id="clock">—</div>
           <button class="icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle theme">
             <span data-ic="moon"></span>
@@ -46,9 +47,10 @@
 
       <!-- HOME ------------------------------------------------------------ -->
       <section class="view" id="view-home">
+        <div class="banner" id="demoBanner" hidden></div>
         <div class="stat-row" id="statRow"></div>
         <div id="rooms" class="rooms"></div>
-        <div class="empty" id="homeEmpty" hidden>No devices configured yet.</div>
+        <div class="onboard" id="homeEmpty" hidden></div>
       </section>
 
       <!-- AUTOMATION ------------------------------------------------------ -->

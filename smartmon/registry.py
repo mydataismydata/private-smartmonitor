@@ -1,9 +1,9 @@
 """Load the device fleet and wire each device to a backend.
 
-Source of truth is devices.json (see devices.example.json). If it's absent — or
+Source of truth is smartmon.json (see smartmon.example.json). If it's absent — or
 SMART_DEMO=1 — we fall back to the in-memory demo fleet so the app always runs.
 In demo mode every device is driven by the DemoBackend regardless of its declared
-protocol, so you can point at a real devices.json but preview it without touching
+protocol, so you can point at a real smartmon.json but preview it without touching
 the hardware.
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ from .devices import Device, DeviceConfigError
 
 
 def load_devices_file(path: str) -> List[Device]:
-    """Parse devices.json -> [Device]. Raises DeviceConfigError on malformed entries."""
+    """Parse smartmon.json -> [Device]. Raises DeviceConfigError on malformed entries."""
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     raw = data.get("devices") if isinstance(data, dict) else data
@@ -54,7 +54,7 @@ class Registry:
     @classmethod
     def from_config(cls, cfg: Config) -> "Registry":
         if cfg.demo:
-            # Demo mode: use a real devices.json if one exists (simulated), else the sample fleet.
+            # Demo mode: use a real smartmon.json if one exists (simulated), else the sample fleet.
             try:
                 devices = load_devices_file(cfg.devices_file)
             except (OSError, DeviceConfigError, ValueError):
