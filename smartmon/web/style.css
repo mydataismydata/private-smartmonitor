@@ -297,6 +297,16 @@ svg { display: block; }
 .mode-btn.active[data-mode="auto"] { background: var(--violet); border-color: var(--violet); }
 .mode-btn.active[data-mode="fan"]  { background: var(--blue); border-color: var(--blue); }
 
+/* fan-speed selector */
+.fan-row { margin: 0 0 18px; }
+.fan-row > label { display: block; font-size: 13px; color: var(--ink-2); font-weight: 600; margin-bottom: 8px; }
+.fan-speeds { display: flex; gap: 8px; }
+.fan-btn { flex: 1; padding: 10px 4px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface);
+  color: var(--ink-2); font-size: 13px; font-weight: 650; cursor: pointer; transition: all 0.15s; }
+.fan-btn:hover:not(:disabled) { border-color: var(--line-2); color: var(--ink); }
+.fan-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.fan-btn:disabled { opacity: 0.45; cursor: default; }
+
 /* big slider (brightness / level) */
 .slider-row { margin: 6px 2px 20px; }
 .slider-row label { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-2); margin-bottom: 10px; font-weight: 600; }

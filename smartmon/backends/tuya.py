@@ -28,11 +28,11 @@ DEFAULT_DP: Dict[str, Dict[str, str]] = {
     "plug": {"power": "1", "power_w": "19"},
     "switch": {"power": "1"},
     "light": {"power": "20", "brightness": "22", "color_temp": "23"},
-    "ac": {"power": "1", "mode": "4", "setpoint": "2", "current_temp": "3"},
+    "ac": {"power": "1", "mode": "4", "setpoint": "2", "current_temp": "3", "fan_speed": "23"},
     # EG4/Deye "Solar Aircon" mini-split: A/C DPs + the LAN-only PV/grid metering block
     # (106 solar W, 111 grid/AC W, 108 solar %, 109 grid %). Matches SolarPi's appliance.py.
     "solar_ac": {
-        "power": "1", "mode": "4", "setpoint": "2", "current_temp": "3",
+        "power": "1", "mode": "4", "setpoint": "2", "current_temp": "3", "fan_speed": "23",
         "solar_power": "106", "grid_power": "111", "solar_percent": "108", "grid_percent": "109",
     },
 }
@@ -171,6 +171,8 @@ def decode(device: Device, dps: Dict[str, object]) -> DeviceState:
         st.current_temp_c = _from_divisor(sig("current_temp"), _temp_divisor(device))
     if device.has("mode"):
         st.mode = _to_canonical_mode(device, _as_str(sig("mode")))
+    if device.has("fan"):
+        st.fan_speed = _as_str(sig("fan_speed"))  # raw device enum, no mapping
     if device.has("solar_power"):
         st.solar_power_w = _num(sig("solar_power"))
         st.solar_percent = _int(sig("solar_percent"))
@@ -206,6 +208,10 @@ def encode(device: Device, command: Command) -> List[Tuple[str, object]]:
             dp = dp_for(device, "mode")
             if dp and value is not None:
                 out.append((dp, _to_device_mode(device, str(value))))
+        elif key == "fan" and device.has("fan"):
+            dp = dp_for(device, "fan_speed")
+            if dp and value is not None:
+                out.append((dp, str(value)))  # raw enum passthrough
     return out
 
 

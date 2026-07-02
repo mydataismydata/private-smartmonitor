@@ -28,20 +28,26 @@ TYPE_ALIASES = {"climate": "ac", "solar_appliance": "solar_ac"}
 #   mode         A/C operating mode (see AC_MODES)
 #   setpoint     A/C target temperature (writable)
 #   temperature  measured room temperature (read-only)
+#   fan          fan-speed enum (writable; options from fan_speeds)
 #   solar_power  PV input power, watts (read-only) — the EG4/Deye "Solar Aircon" mini-split
 #   grid_power   grid/AC input power, watts (read-only), plus the PV/grid % split
 CAPABILITIES: Dict[str, Tuple[str, ...]] = {
     "plug": ("power", "energy"),
     "switch": ("power",),
     "light": ("power", "brightness", "color_temp"),
-    "ac": ("power", "mode", "setpoint", "temperature"),
+    "ac": ("power", "mode", "setpoint", "temperature", "fan"),
     # The solar mini-split is an A/C unit that ALSO meters its PV vs. grid power (LAN-only DPs).
-    "solar_ac": ("power", "mode", "setpoint", "temperature", "solar_power", "grid_power"),
+    "solar_ac": ("power", "mode", "setpoint", "temperature", "fan", "solar_power", "grid_power"),
 }
 
 # Canonical A/C modes the UI/API speak. A backend maps these onto whatever the
 # hardware calls them (e.g. Tuya's cool/cold, dry/wet) via a per-device mode_map.
 AC_MODES = ("auto", "cool", "heat", "dry", "fan")
+
+# Fan-speed options the A/C's fan selector offers. Passed through to the device as-is (no
+# canonical mapping), so if a unit uses different enum strings, override them per device with
+# options.fan_speeds. Default matches the EG4/Deye "Solar Aircon" (SolarPi's DP-23 reverse-eng).
+FAN_SPEEDS_DEFAULT = ("auto", "low", "medium", "high")
 
 # Backends a device can be driven by. "demo" is the in-memory simulator.
 PROTOCOLS = ("demo", "tuya")
@@ -82,6 +88,11 @@ class Device:
 
     def has(self, capability: str) -> bool:
         return capability in self.capabilities
+
+    @property
+    def fan_speeds(self) -> Tuple[str, ...]:
+        """The fan-speed options this device offers (options.fan_speeds, else the default)."""
+        return tuple(str(s) for s in self.option("fan_speeds", FAN_SPEEDS_DEFAULT))
 
     def option(self, key: str, default=None):
         return self.options.get(key, default)

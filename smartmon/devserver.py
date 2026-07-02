@@ -27,7 +27,7 @@ from .config import Config
 from .manager import DeviceManager
 
 WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
-_COMMAND_KEYS = ("power", "brightness", "color_temp", "mode", "setpoint")
+_COMMAND_KEYS = ("power", "brightness", "color_temp", "mode", "setpoint", "fan")
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",

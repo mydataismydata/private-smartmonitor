@@ -42,6 +42,13 @@ class TestDeviceModel(unittest.TestCase):
         self.assertEqual(Device.from_dict({"id": "a", "type": "climate", "protocol": "demo"}).type, "ac")
         self.assertEqual(Device.from_dict({"id": "b", "type": "solar_appliance", "protocol": "demo"}).type, "solar_ac")
 
+    def test_fan_speeds_default_and_override(self):
+        d = Device.from_dict({"id": "a", "type": "ac", "protocol": "demo"})
+        self.assertEqual(d.fan_speeds, ("auto", "low", "medium", "high"))
+        d2 = Device.from_dict({"id": "b", "type": "ac", "protocol": "demo",
+                               "options": {"fan_speeds": ["auto", "1", "2", "3"]}})
+        self.assertEqual(d2.fan_speeds, ("auto", "1", "2", "3"))
+
     def test_missing_id_rejected(self):
         with self.assertRaises(DeviceConfigError):
             Device.from_dict({"type": "plug", "protocol": "demo"})
@@ -138,6 +145,14 @@ class TestTuyaCodec(unittest.TestCase):
         d = tuya_dev("solar_ac")
         self.assertEqual(dict(tuya.encode(d, {"mode": "cool"}))["4"], "cold")
         self.assertEqual(dict(tuya.encode(d, {"mode": "heat"}))["4"], "hot")
+
+    def test_fan_speed_decode_and_encode(self):
+        d = tuya_dev("ac")
+        self.assertEqual(tuya.decode(d, {"1": True, "23": "high"}).fan_speed, "high")  # DP 23, raw
+        self.assertEqual(dict(tuya.encode(d, {"fan": "low"}))["23"], "low")
+
+    def test_fan_command_dropped_for_non_ac(self):
+        self.assertEqual(tuya.encode(tuya_dev("plug"), {"fan": "high"}), [])
 
 
 class TestDemoBackend(unittest.TestCase):

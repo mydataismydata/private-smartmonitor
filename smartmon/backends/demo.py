@@ -41,6 +41,9 @@ class DemoBackend(Backend):
             st.current_temp_c = float(device.option("demo_temp", 23))
         if device.has("mode"):
             st.mode = str(device.option("demo_mode", "cool"))
+        if device.has("fan"):
+            speeds = device.fan_speeds
+            st.fan_speed = str(device.option("demo_fan", speeds[0] if speeds else "auto"))
         if device.has("solar_power"):
             solar = float(device.option("demo_solar", 620)) if st.power else 0.0
             grid = float(device.option("demo_grid", 45)) if st.power else 0.0
@@ -87,6 +90,8 @@ class DemoBackend(Backend):
             st.setpoint_c = round(float(command["setpoint"]), 1)
         if "mode" in command and device.has("mode"):
             st.mode = str(command["mode"])
+        if "fan" in command and device.has("fan"):
+            st.fan_speed = str(command["fan"])
         return {"ok": True}
 
 
@@ -97,7 +102,8 @@ def demo_devices() -> list:
         ("living-lamp", "Living Room Lamp", "light", "Living Room", {"demo_brightness": 72}),
         ("living-tv", "TV & Media Plug", "plug", "Living Room", {"demo_watts": 130}),
         ("living-ac", "Living Mini-Split", "solar_ac", "Living Room",
-         {"demo_mode": "cool", "demo_setpoint": 16, "demo_temp": 16, "demo_solar": 659, "demo_grid": 40}),
+         {"demo_mode": "cool", "demo_setpoint": 16, "demo_temp": 16, "demo_solar": 659, "demo_grid": 40,
+          "demo_fan": "medium"}),
         ("kitchen-coffee", "Coffee Maker", "plug", "Kitchen", {"demo_power": False, "demo_watts": 950}),
         ("kitchen-lights", "Kitchen Lights", "light", "Kitchen", {"demo_brightness": 100}),
         ("bedroom-lamp", "Bedside Lamp", "light", "Bedroom", {"demo_power": False, "demo_brightness": 30}),

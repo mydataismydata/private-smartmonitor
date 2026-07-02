@@ -21,6 +21,7 @@ class DeviceState:
     brightness: Optional[int] = None      # 0-100
     color_temp: Optional[int] = None      # 0-100 (warm -> cool)
     mode: Optional[str] = None            # canonical AC_MODES value
+    fan_speed: Optional[str] = None       # device-native fan-speed enum (raw passthrough)
     setpoint_c: Optional[float] = None    # target temperature, deg C
     current_temp_c: Optional[float] = None  # measured temperature, deg C
     power_w: Optional[float] = None       # instantaneous draw, watts (plugs)
@@ -38,6 +39,7 @@ class DeviceState:
             "brightness": self.brightness,
             "color_temp": self.color_temp,
             "mode": self.mode,
+            "fan_speed": self.fan_speed,
             "setpoint_c": self.setpoint_c,
             "current_temp_c": self.current_temp_c,
             "power_w": self.power_w,

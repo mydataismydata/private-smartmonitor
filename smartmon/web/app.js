@@ -371,6 +371,7 @@ function openSheet(id) {
     colorTemp: st.color_temp != null ? st.color_temp : 50,
     mode: st.mode || 'cool',   // local UI intent — the device's own report can lag a few seconds
     power: !!st.power,
+    fan: st.fan_speed || '',
   };
   $('#modal').hidden = false;
   renderSheet();
@@ -414,6 +415,20 @@ function powerRow(d, st) {
   </div>`;
 }
 
+const FAN_LABELS = { auto: 'Auto', low: 'Low', medium: 'Med', mid: 'Med', high: 'High' };
+const fanLabel = (f) => FAN_LABELS[f] || cap(f);
+
+// The fan-speed selector for the A/C sheet. Speeds come from the device (options.fan_speeds).
+function fanRow(d, o, on) {
+  const speeds = d.fan_speeds && d.fan_speeds.length ? d.fan_speeds : ['auto', 'low', 'medium', 'high'];
+  return `<div class="fan-row">
+    <label>Fan speed</label>
+    <div class="fan-speeds">
+      ${speeds.map((f) => `<button class="fan-btn ${on && o.fan === f ? 'active' : ''}" data-fan="${f}" ${on ? '' : 'disabled'}>${fanLabel(f)}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
 function renderSheet() {
   const o = state.open; if (!o) return;
   const d = deviceById(o.id); if (!d) return closeSheet();
@@ -450,6 +465,7 @@ function renderSheet() {
         ${MODES.map((m) => `<button class="mode-btn ${on && o.mode === m.m ? 'active' : ''}" data-mode="${m.m}">${icon(m.ic)}<span>${m.label}</span></button>`).join('')}
         <button class="mode-btn ${!on ? 'active' : ''}" data-mode="off" style="${!on ? 'background:var(--ink-3);border-color:var(--ink-3);color:#fff' : ''}">${icon('power')}<span>Off</span></button>
       </div>
+      ${fanRow(d, o, on)}
       ${foot}`;
   } else if (d.type === 'light') {
     const frac = o.brightness / 100;
@@ -713,6 +729,15 @@ async function sheetMode(mode) {
   renderSheet();
 }
 
+async function sheetFan(fan) {
+  const o = state.open; if (!o) return;
+  const prev = o.fan;
+  o.fan = fan;                    // optimistic — highlight immediately
+  renderSheet();
+  const res = await sendCommand(o.id, { fan });
+  if (!res || !res.ok) { o.fan = prev; renderSheet(); }
+}
+
 function bindSheetEvents() {
   const sheet = $('#sheet');
   sheet.addEventListener('click', (e) => {
@@ -721,6 +746,8 @@ function bindSheetEvents() {
     if (step) return sheetStep(Number(step.dataset.step));
     const mode = e.target.closest('[data-mode]');
     if (mode) return sheetMode(mode.dataset.mode);
+    const fan = e.target.closest('[data-fan]');
+    if (fan) return sheetFan(fan.dataset.fan);
     // management actions
     const edit = e.target.closest('[data-edit-device]');
     if (edit) return openEditForm(edit.dataset.editDevice);

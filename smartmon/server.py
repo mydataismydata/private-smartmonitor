@@ -24,7 +24,7 @@ from .manager import DeviceManager
 WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
 
 # Command keys accepted on POST /api/devices/{id}/command. Anything else is dropped.
-_COMMAND_KEYS = ("power", "brightness", "color_temp", "mode", "setpoint")
+_COMMAND_KEYS = ("power", "brightness", "color_temp", "mode", "setpoint", "fan")
 
 
 def _start_mdns(port: int):

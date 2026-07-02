@@ -33,14 +33,18 @@ A device's `type` fixes its capabilities, which is what the UI renders controls 
 | `plug`     | power, energy                          | toggle + live watts |
 | `switch`   | power                                  | toggle |
 | `light`    | power, brightness, color_temp          | toggle + brightness/color sliders + dial |
-| `ac`       | power, mode, setpoint, temperature     | **A/C** — setpoint dial + stepper + mode buttons |
-| `solar_ac` | A/C + **solar_power, grid_power**      | **Solar A/C** — thermostat, plus PV vs. AC watts and their split |
+| `ac`       | power, mode, setpoint, temperature, fan | **A/C** — setpoint dial + stepper + mode + fan-speed buttons |
+| `solar_ac` | A/C + **solar_power, grid_power**       | **Solar A/C** — the A/C sheet, plus PV vs. AC watts and their split |
 
 `solar_ac` (**"Solar A/C"**) is the EG4/Deye "Solar Aircon" mini-split (the unit SolarPi reads): an
 A/C that also meters its **PV power (DP 106)** and **grid/AC power (DP 111)** on LAN-only datapoints —
 pick this type, not `plug`, or you'll read the wrong DP and see a meaningless wattage. It already
 knows the unit's `cold`/`hot`/`wet` mode names, so no `mode_map` is needed. Plain `ac` is the same
 thermostat without the solar metering.
+
+Fan speed (DP 23) is passed through as the device's own enum; the selector offers
+`auto`/`low`/`medium`/`high` by default. If your unit uses different values, set them per device
+with `options.fan_speeds` (e.g. `["auto","1","2","3"]`).
 
 State flows one way: a **backend** reads a device into a `DeviceState` and applies plain command
 dicts (`{"power": true}`, `{"brightness": 60}`, `{"mode": "cool", "setpoint": 21}`) to it. Adding a

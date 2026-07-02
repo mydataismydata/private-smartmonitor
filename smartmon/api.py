@@ -23,6 +23,8 @@ def device_payload(device: Device, poller: DevicePoller) -> Dict[str, object]:
     if device.type in ("ac", "solar_ac"):  # the compressor-protected types
         out["power_cooldown"] = poller.power_cooldown_remaining(device)
         out["mode_cooldown"] = poller.mode_cooldown_remaining(device)
+    if device.has("fan"):
+        out["fan_speeds"] = list(device.fan_speeds)
     return out
 
 
