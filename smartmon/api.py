@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
+from . import version
 from .automations import AutomationStore
 from .backends.base import DeviceState
 from .devices import Device, rooms_of
@@ -46,6 +47,7 @@ def devices_payload(registry: Registry, poller: DevicePoller) -> Dict[str, objec
     devices = registry.devices
     return {
         "demo": registry.demo,
+        "build": version.info(),  # so the UI can show the running commit
         "rooms": rooms_of(devices),
         "summary": summary(devices, poller),
         "devices": [device_payload(d, poller) for d in devices],
@@ -95,6 +97,7 @@ def mark_discovered(manager, scan_result: Dict[str, object]) -> Dict[str, object
 def health_payload(registry: Registry, poller: DevicePoller) -> Dict[str, object]:
     return {
         "ok": True,
+        "build": version.info(),
         "demo": registry.demo,
         "devices": len(registry.devices),
         "online": sum(1 for d in registry.devices if (poller.states.get(d.id) and poller.states[d.id].online)),

@@ -270,6 +270,7 @@ function renderAbout() {
   $('#aboutCard').innerHTML = `
     <h3>Private SmartMonitor</h3>
     <p class="muted">A self-hosted controller for smart plugs, lights, switches, and A/C units — a sibling of the Solar Tracking Dashboard, running headless on the same Raspberry Pi.</p>
+    <div class="kv"><b>Build</b><span>v${(d.build || {}).version || '?'}${(d.build || {}).commit ? ' · ' + d.build.commit : ''}</span></div>
     <div class="kv"><b>Mode</b><span>${d.demo ? 'Demo (simulated fleet)' : 'Live'}</span></div>
     <div class="kv"><b>Devices</b><span>${d.devices.length}</span></div>
     <div class="kv"><b>API</b><span><code>/api/devices</code>, <code>/api/devices/{id}/command</code>, <code>/api/automations</code></span></div>
@@ -314,6 +315,8 @@ function renderAll() {
     ? `You have ${s.on ?? 0} of ${s.total ?? 0} device${s.total === 1 ? '' : 's'} currently on.`
     : (d.demo ? 'Exploring the demo fleet.' : 'No devices yet — add your first one.');
   $('#demoBadge').hidden = !d.demo;
+  const b = d.build || {};
+  $('#verLabel').textContent = b.version ? (b.commit ? `v${b.version} · ${b.commit}` : `v${b.version}`) : '';
   renderBanner();
   renderStats();
   renderRooms();
