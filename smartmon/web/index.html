@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#eef1f6" />
+  <title>Private SmartMonitor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Left rail — the desktop/tablet stand-in for the mockups' phone bottom-nav. -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark" id="brandMark"></span>
+        <span class="brand-name">SmartMonitor</span>
+      </div>
+
+      <nav class="nav" id="nav">
+        <button class="nav-item active" data-view="home"><span class="nav-ic" data-ic="home"></span><span>Home</span></button>
+        <button class="nav-item" data-view="automation"><span class="nav-ic" data-ic="bolt"></span><span>Automation</span></button>
+        <button class="nav-item" data-view="settings"><span class="nav-ic" data-ic="gear"></span><span>Settings</span></button>
+        <button class="nav-item" data-view="about"><span class="nav-ic" data-ic="info"></span><span>About</span></button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <span class="live-dot" id="liveDot"></span>
+        <span class="conn" id="connState">connecting…</span>
+        <span class="badge" id="demoBadge" hidden>Demo</span>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="page-head">
+        <div class="ph-left">
+          <h1 id="greeting">Hello</h1>
+          <p class="muted" id="subgreeting">Loading your devices…</p>
+        </div>
+        <div class="ph-right">
+          <div class="clock" id="clock">—</div>
+          <button class="icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle theme">
+            <span data-ic="moon"></span>
+          </button>
+        </div>
+      </header>
+
+      <!-- HOME ------------------------------------------------------------ -->
+      <section class="view" id="view-home">
+        <div class="stat-row" id="statRow"></div>
+        <div id="rooms" class="rooms"></div>
+        <div class="empty" id="homeEmpty" hidden>No devices configured yet.</div>
+      </section>
+
+      <!-- AUTOMATION ------------------------------------------------------ -->
+      <section class="view" id="view-automation" hidden>
+        <div class="section-intro">
+          <h2>Automation</h2>
+          <p class="muted">Set your devices to work automatically with pre-configured routines.</p>
+        </div>
+        <div id="automations" class="automations"></div>
+        <p class="scaffold-note" id="autoNote"></p>
+      </section>
+
+      <!-- SETTINGS -------------------------------------------------------- -->
+      <section class="view" id="view-settings" hidden>
+        <div class="section-intro"><h2>Settings</h2><p class="muted">Display and system preferences.</p></div>
+        <div class="card settings-card">
+          <label class="setting-row">
+            <span><b>Dark theme</b><small class="muted">Match the room, not the phone.</small></span>
+            <span class="switch"><input type="checkbox" id="setDark" /><i></i></span>
+          </label>
+          <label class="setting-row">
+            <span><b>Temperature in °F</b><small class="muted">Show climate values in Fahrenheit.</small></span>
+            <span class="switch"><input type="checkbox" id="setFahrenheit" /><i></i></span>
+          </label>
+          <label class="setting-row">
+            <span><b>Auto-refresh</b><small class="muted">Poll device state every few seconds.</small></span>
+            <span class="switch"><input type="checkbox" id="setAutoRefresh" checked /><i></i></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- ABOUT ----------------------------------------------------------- -->
+      <section class="view" id="view-about" hidden>
+        <div class="section-intro"><h2>About</h2><p class="muted">Private SmartMonitor</p></div>
+        <div class="card about-card" id="aboutCard"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Device control sheet (the thermostat-style overlay from the mockups). -->
+  <div class="modal-backdrop" id="modal" hidden>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Local device fleet — HOLDS SECRETS (Tuya local keys / device ids). Never commit it.
+# Commit devices.example.json instead; each deployment keeps its own devices.json.
+devices.json
+
+# Local data / runtime
+*.sqlite
+*.sqlite3
+*.db
+data/
+*.log
+
+# Local screenshot / scratch drop folder (design mockups live here on the dev box)
+.files/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,18 @@
+# Production server (runs on the Pi): FastAPI + uvicorn.
+fastapi>=0.110
+uvicorn[standard]>=0.29
+
+# mDNS advertisement so other devices on the LAN can discover the app (_smartmon._tcp).
+# Optional: server.py degrades gracefully if it's missing. An avahi .service file works too.
+zeroconf>=0.131
+
+# Tuya-local device control (plugs / lights / switches / climate). Optional and imported
+# lazily — the app runs without it until a real Tuya device is configured in devices.json.
+# Install on the Pi when you add hardware:  pip install tinytuya
+# tinytuya>=1.13
+
+# --- No install needed for either of these ---------------------------------------
+# Dev/demo server:  python -m smartmon.devserver     (stdlib http.server, demo fleet)
+# Tests:            python tests/test_devices.py      (stdlib unittest)
+# The whole stack below the FastAPI layer (devices, backends, poller, api) is
+# stdlib-only, so you can run and preview the app on a bare Python.

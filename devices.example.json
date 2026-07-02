@@ -1,0 +1,70 @@
+{
+  "_comment": "Copy this to devices.json and fill in your own devices. devices.json is git-ignored because it holds Tuya local keys. Extract each device's id + local key once with `tinytuya wizard` (see the README). Only 'ip', 'device_id', and 'local_key' are required per Tuya device; 'dps' and 'options' override the type defaults only when a device deviates from them.",
+
+  "devices": [
+    {
+      "id": "living-lamp",
+      "name": "Living Room Lamp",
+      "room": "Living Room",
+      "type": "light",
+      "protocol": "tuya",
+      "ip": "192.168.1.50",
+      "device_id": "xxxxxxxxxxxxxxxxxxxx",
+      "local_key": "xxxxxxxxxxxxxxxx",
+      "version": 3.3
+    },
+    {
+      "id": "tv-plug",
+      "name": "TV & Media Plug",
+      "room": "Living Room",
+      "type": "plug",
+      "protocol": "tuya",
+      "ip": "192.168.1.51",
+      "device_id": "xxxxxxxxxxxxxxxxxxxx",
+      "local_key": "xxxxxxxxxxxxxxxx",
+      "version": 3.3,
+      "options": { "power_divisor": 10 }
+    },
+    {
+      "id": "bedroom-fan",
+      "name": "Bedroom Fan",
+      "room": "Bedroom",
+      "type": "switch",
+      "protocol": "tuya",
+      "ip": "192.168.1.52",
+      "device_id": "xxxxxxxxxxxxxxxxxxxx",
+      "local_key": "xxxxxxxxxxxxxxxx",
+      "version": 3.3
+    },
+    {
+      "id": "living-ac",
+      "name": "Living Room Climate",
+      "room": "Living Room",
+      "type": "climate",
+      "protocol": "tuya",
+      "ip": "192.168.1.53",
+      "device_id": "xxxxxxxxxxxxxxxxxxxx",
+      "local_key": "xxxxxxxxxxxxxxxx",
+      "version": 3.3,
+      "options": {
+        "mode_map": { "cool": "cold", "heat": "hot", "dry": "wet" },
+        "temp_divisor": 1
+      },
+      "_note": "mode_map matches the EG4/Deye mini-split SolarPi already reads (cold/hot/wet). This is the same unit — SolarPi reads it read-only; SmartMonitor can also control it."
+    },
+    {
+      "id": "old-lamp",
+      "name": "Older Dimmable Lamp",
+      "room": "Office",
+      "type": "light",
+      "protocol": "tuya",
+      "ip": "192.168.1.54",
+      "device_id": "xxxxxxxxxxxxxxxxxxxx",
+      "local_key": "xxxxxxxxxxxxxxxx",
+      "version": 3.3,
+      "dps": { "power": "1", "brightness": "2" },
+      "options": { "bright_scale": 255 },
+      "_note": "Example of a first-gen Tuya light: switch on DP 1, brightness on DP 2 with a 25..255 scale."
+    }
+  ]
+}
