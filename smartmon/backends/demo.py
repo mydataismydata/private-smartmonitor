@@ -41,6 +41,13 @@ class DemoBackend(Backend):
             st.current_temp_c = float(device.option("demo_temp", 23))
         if device.has("mode"):
             st.mode = str(device.option("demo_mode", "cool"))
+        if device.has("solar_power"):
+            solar = float(device.option("demo_solar", 620)) if st.power else 0.0
+            grid = float(device.option("demo_grid", 45)) if st.power else 0.0
+            st.solar_power_w, st.grid_power_w = solar, grid
+            total = solar + grid
+            st.solar_percent = round(solar / total * 100) if total else 0
+            st.grid_percent = 100 - st.solar_percent if total else 0
         return st
 
     def _get(self, device: Device) -> DeviceState:
@@ -60,6 +67,10 @@ class DemoBackend(Backend):
             out.power_w = round(base + random.uniform(-4, 4), 1) if out.power else round(random.uniform(0, 1.5), 1)
         if out.current_temp_c is not None:
             out.current_temp_c = round(st.current_temp_c + random.uniform(-0.3, 0.3), 1)
+        if out.solar_power_w is not None and out.power:
+            out.solar_power_w = round(max(0.0, st.solar_power_w + random.uniform(-40, 40)), 0)
+        if out.grid_power_w is not None and out.power:
+            out.grid_power_w = round(max(0.0, st.grid_power_w + random.uniform(-8, 8)), 0)
         return out
 
     async def apply(self, device: Device, command: Command) -> Dict[str, object]:
@@ -85,8 +96,8 @@ def demo_devices() -> list:
     specs = [
         ("living-lamp", "Living Room Lamp", "light", "Living Room", {"demo_brightness": 72}),
         ("living-tv", "TV & Media Plug", "plug", "Living Room", {"demo_watts": 130}),
-        ("living-ac", "Living Room Climate", "climate", "Living Room",
-         {"demo_mode": "cool", "demo_setpoint": 16, "demo_temp": 16}),
+        ("living-ac", "Living Mini-Split", "solar_appliance", "Living Room",
+         {"demo_mode": "cool", "demo_setpoint": 16, "demo_temp": 16, "demo_solar": 659, "demo_grid": 40}),
         ("kitchen-coffee", "Coffee Maker", "plug", "Kitchen", {"demo_power": False, "demo_watts": 950}),
         ("kitchen-lights", "Kitchen Lights", "light", "Kitchen", {"demo_brightness": 100}),
         ("bedroom-lamp", "Bedside Lamp", "light", "Bedroom", {"demo_power": False, "demo_brightness": 30}),

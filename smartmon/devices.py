@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
 # Supported device kinds. Each maps to a fixed capability set below.
-DEVICE_TYPES = ("plug", "switch", "light", "climate")
+DEVICE_TYPES = ("plug", "switch", "light", "climate", "solar_appliance")
 
 # What each type can do — drives both the API contract and the UI controls.
 #   power        on/off
@@ -22,11 +22,15 @@ DEVICE_TYPES = ("plug", "switch", "light", "climate")
 #   mode         climate operating mode (see CLIMATE_MODES)
 #   setpoint     climate target temperature (writable)
 #   temperature  measured room temperature (read-only)
+#   solar_power  PV input power, watts (read-only) — the EG4/Deye "Solar Aircon" mini-split
+#   grid_power   grid/AC input power, watts (read-only), plus the PV/grid % split
 CAPABILITIES: Dict[str, Tuple[str, ...]] = {
     "plug": ("power", "energy"),
     "switch": ("power",),
     "light": ("power", "brightness", "color_temp"),
     "climate": ("power", "mode", "setpoint", "temperature"),
+    # The solar mini-split is a climate unit that ALSO meters its PV vs. grid power (LAN-only DPs).
+    "solar_appliance": ("power", "mode", "setpoint", "temperature", "solar_power", "grid_power"),
 }
 
 # Canonical climate modes the UI/API speak. A backend maps these onto whatever the

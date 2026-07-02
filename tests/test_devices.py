@@ -118,6 +118,22 @@ class TestTuyaCodec(unittest.TestCase):
         self.assertIsNone(st.setpoint_c)
         self.assertIsNone(st.current_temp_c)
 
+    def test_solar_appliance_decodes_pv_and_grid(self):
+        d = tuya_dev("solar_appliance")
+        st = tuya.decode(d, {"1": True, "4": "cold", "2": 16, "3": 16, "106": 659, "111": 40, "108": 94, "109": 6})
+        self.assertTrue(st.power)
+        self.assertEqual(st.mode, "cool")           # cold -> cool via the type's default mode_map
+        self.assertEqual(st.setpoint_c, 16)
+        self.assertEqual(st.solar_power_w, 659)     # DP 106, not the plug's DP 19
+        self.assertEqual(st.grid_power_w, 40)       # DP 111
+        self.assertEqual(st.solar_percent, 94)
+        self.assertEqual(st.grid_percent, 6)
+
+    def test_solar_appliance_mode_encode_uses_native_enum(self):
+        d = tuya_dev("solar_appliance")
+        self.assertEqual(dict(tuya.encode(d, {"mode": "cool"}))["4"], "cold")
+        self.assertEqual(dict(tuya.encode(d, {"mode": "heat"}))["4"], "hot")
+
 
 class TestDemoBackend(unittest.TestCase):
     def test_apply_then_read_light(self):
@@ -144,13 +160,22 @@ class TestDemoBackend(unittest.TestCase):
         self.assertLess(off.power_w, 2)            # ~standby when off
 
     def test_climate_setpoint_and_mode(self):
-        devs = demo_devices()
-        backend = DemoBackend(devs)
-        ac = next(d for d in devs if d.type == "climate")
+        ac = Device(id="ac", name="AC", type="climate", protocol="demo",
+                    options={"demo_mode": "cool", "demo_setpoint": 21})
+        backend = DemoBackend([ac])
         asyncio.run(backend.apply(ac, {"mode": "heat", "setpoint": 24}))
         st = asyncio.run(backend.read(ac))
         self.assertEqual(st.mode, "heat")
         self.assertEqual(st.setpoint_c, 24)
+
+    def test_demo_solar_appliance_reports_pv_and_grid(self):
+        ac = Device(id="ms", name="Mini-Split", type="solar_appliance", protocol="demo",
+                    options={"demo_solar": 659, "demo_grid": 40})
+        st = asyncio.run(DemoBackend([ac]).read(ac))
+        self.assertTrue(st.power)
+        self.assertGreater(st.solar_power_w, 400)    # PV power present (jittered around 659)
+        self.assertGreater(st.grid_power_w, 0)       # AC/grid power present
+        self.assertIsNotNone(st.solar_percent)
 
 
 if __name__ == "__main__":

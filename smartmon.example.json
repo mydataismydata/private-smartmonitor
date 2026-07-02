@@ -38,19 +38,15 @@
     },
     {
       "id": "living-ac",
-      "name": "Living Room Climate",
+      "name": "Living Mini-Split",
       "room": "Living Room",
-      "type": "climate",
+      "type": "solar_appliance",
+      "version": 3.3,
       "protocol": "tuya",
       "ip": "192.168.1.53",
       "device_id": "xxxxxxxxxxxxxxxxxxxx",
       "local_key": "xxxxxxxxxxxxxxxx",
-      "version": 3.3,
-      "options": {
-        "mode_map": { "cool": "cold", "heat": "hot", "dry": "wet" },
-        "temp_divisor": 1
-      },
-      "_note": "mode_map matches the EG4/Deye mini-split SolarPi already reads (cold/hot/wet). This is the same unit — SolarPi reads it read-only; SmartMonitor can also control it."
+      "_note": "The EG4/Deye 'Solar Aircon' mini-split (same unit SolarPi reads). The solar_appliance type surfaces its PV power (DP 106) and grid/AC power (DP 111) split, and already knows this unit's cold/hot/wet mode names, so no mode_map is needed. Set options.temp_divisor to 10 if a live status() shows temps in tenths."
     },
     {
       "id": "old-lamp",

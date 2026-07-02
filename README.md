@@ -28,12 +28,18 @@ vs. scaffolded.
 
 A device's `type` fixes its capabilities, which is what the UI renders controls from:
 
-| Type      | Capabilities                          | Controls shown |
-|-----------|---------------------------------------|----------------|
-| `plug`    | power, energy                         | toggle + live watts |
-| `switch`  | power                                 | toggle |
-| `light`   | power, brightness, color_temp         | toggle + brightness/color sliders + dial |
-| `climate` | power, mode, setpoint, temperature    | setpoint dial + stepper + mode buttons |
+| Type              | Capabilities                                   | Controls shown |
+|-------------------|------------------------------------------------|----------------|
+| `plug`            | power, energy                                  | toggle + live watts |
+| `switch`          | power                                          | toggle |
+| `light`           | power, brightness, color_temp                  | toggle + brightness/color sliders + dial |
+| `climate`         | power, mode, setpoint, temperature             | setpoint dial + stepper + mode buttons |
+| `solar_appliance` | climate + **solar_power, grid_power**          | thermostat, plus PV vs. AC watts and their split |
+
+`solar_appliance` is the EG4/Deye **"Solar Aircon" mini-split** (the unit SolarPi reads): a climate
+device that also meters its **PV power (DP 106)** and **grid/AC power (DP 111)** on LAN-only
+datapoints — pick this type, not `plug`, or you'll read the wrong DP and see a meaningless wattage.
+It already knows the unit's `cold`/`hot`/`wet` mode names, so no `mode_map` is needed.
 
 State flows one way: a **backend** reads a device into a `DeviceState` and applies plain command
 dicts (`{"power": true}`, `{"brightness": 60}`, `{"mode": "cool", "setpoint": 21}`) to it. Adding a
@@ -143,9 +149,9 @@ Its live snapshot is also the moment to confirm DP numbers and scales against th
 whether a light's brightness is 10..1000 or 25..255, or a plug's power is in watts or tenths).
 
 > **The mini-split is shared, safely.** The EG4/Deye unit SolarPi reads is a Tuya device too, so it
-> can appear here as a `climate` device (see `smartmon.example.json`). Tuya v3.3's LAN protocol allows
-> a single connection at a time, so if both apps poll it, stagger their intervals or point
-> SmartMonitor's climate control at it and let SolarPi read the split via SmartMonitor later.
+> appears here as a `solar_appliance` device (see `smartmon.example.json`) — same PV/grid metering,
+> now with control. Tuya v3.3's LAN protocol allows a single connection at a time, so if both apps
+> poll it, stagger their intervals (or let one own the link).
 
 ## API
 

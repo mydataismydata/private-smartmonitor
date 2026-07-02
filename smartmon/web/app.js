@@ -36,16 +36,18 @@ const ICONS = {
   trash: '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/>',
   search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
   chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
+  ac: '<rect x="2" y="4" width="20" height="9" rx="2"/><line x1="5.5" y1="9.5" x2="14" y2="9.5"/><path d="M6 17.5c1.6 0 1.6-1.5 3.2-1.5M12 18.5c1.6 0 1.6-1.5 3.2-1.5M16 16.5c1.6 0 1.6-1.5 3.2-1.5"/>',
 };
 const icon = (name, cls) =>
   `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`;
 
-const TYPE_ICON = { light: 'bulb', plug: 'plug', switch: 'power', climate: 'thermo' };
+const TYPE_ICON = { light: 'bulb', plug: 'plug', switch: 'power', climate: 'thermo', solar_appliance: 'ac' };
 const TYPES = [
   { t: 'plug', label: 'Plug', ic: 'plug' },
   { t: 'light', label: 'Light', ic: 'bulb' },
   { t: 'switch', label: 'Switch', ic: 'power' },
   { t: 'climate', label: 'Climate', ic: 'thermo' },
+  { t: 'solar_appliance', label: 'Solar A/C', ic: 'ac' },
 ];
 const MODES = [
   { m: 'cool', ic: 'snow', label: 'Cool' },
@@ -177,6 +179,7 @@ function deviceBody(d) {
       const w = st.power ? (st.power_w ?? 0) : 0;
       return `<div class="device-metric">${Math.round(w)}<small>W</small></div>`;
     }
+    case 'solar_appliance':
     case 'climate': {
       const t = tempDisplay(st.current_temp_c);
       const cls = st.mode === 'cool' ? 'cool' : st.mode === 'heat' ? 'heat' : 'on';
@@ -187,6 +190,16 @@ function deviceBody(d) {
     default:
       return `<span class="device-state-txt">${st.power ? 'On' : 'Off'}</span>`;
   }
+}
+
+// The PV / grid power row shown under a solar mini-split's card.
+function solarExtra(d) {
+  const st = d.state || {};
+  if (d.type !== 'solar_appliance' || !d.online || !st.power) return '';
+  return `<div class="device-extra">
+    <span class="ex solar">${icon('sun')}<b>${Math.round(st.solar_power_w || 0)}</b> W<small>solar</small></span>
+    <span class="ex grid">${icon('bolt')}<b>${Math.round(st.grid_power_w || 0)}</b> W<small>AC</small></span>
+  </div>`;
 }
 
 function deviceCard(d) {
@@ -202,6 +215,7 @@ function deviceCard(d) {
       </label>
     </div>
     <div class="device-body">${deviceBody(d)}</div>
+    ${solarExtra(d)}
   </div>`;
 }
 
@@ -367,12 +381,24 @@ function renderSheet() {
   const st = d.state || {};
   let body = '';
 
-  if (d.type === 'climate') {
+  if (d.type === 'climate' || d.type === 'solar_appliance') {
+    const isSolar = d.type === 'solar_appliance';
     const frac = (o.setpoint - 16) / (30 - 16);
     const color = st.mode === 'heat' ? 'var(--amber)' : st.mode === 'cool' ? 'var(--sky)' : 'var(--accent)';
     const t = tempDisplay(o.setpoint);
     const room = tempDisplay(st.current_temp_c);
     const cd = d.power_cooldown || d.mode_cooldown || 0;
+    const foot = isSolar
+      ? `<div class="sheet-foot">
+          <div><span class="fi">${icon('sun')}</span><span><span class="fv" id="saSolar">${Math.round(st.solar_power_w || 0)} W</span><div class="fl">Solar</div></span></div>
+          <div><span class="fi">${icon('bolt')}</span><span><span class="fv" id="saGrid">${Math.round(st.grid_power_w || 0)} W</span><div class="fl">AC / grid</div></span></div>
+          <div><span class="fi">${icon('thermo')}</span><span><span class="fv" id="saRoom">${room.v}${room.u}</span><div class="fl">Room</div></span></div>
+        </div>
+        ${st.solar_percent != null ? `<div class="solar-split"><span id="saBar" style="width:${st.solar_percent}%"></span></div><div class="solar-split-lbl" id="saPct">${st.solar_percent}% of load from solar</div>` : ''}`
+      : `<div class="sheet-foot">
+          <div><span class="fi">${icon('thermo')}</span><span><span class="fv">${room.v}${room.u}</span><div class="fl">Room temp</div></span></div>
+          <div><span class="fi">${icon('wind')}</span><span><span class="fv">${cap(st.mode || '—')}</span><div class="fl">Mode</div></span></div>
+        </div>`;
     body = `
       ${dialHTML(frac, color, `<div class="dial-ic">${icon('thermo')}</div><div class="dial-val" id="dialVal">${t.v}<small>${t.u}</small></div><div class="dial-cap">Setpoint</div>`)}
       <div class="stepper">
@@ -384,10 +410,7 @@ function renderSheet() {
         ${MODES.map((m) => `<button class="mode-btn ${st.power && st.mode === m.m ? 'active' : ''}" data-mode="${m.m}">${icon(m.ic)}<span>${m.label}</span></button>`).join('')}
         <button class="mode-btn ${!st.power ? 'active' : ''}" data-mode="off" style="${!st.power ? 'background:var(--ink-3);border-color:var(--ink-3);color:#fff' : ''}">${icon('power')}<span>Off</span></button>
       </div>
-      <div class="sheet-foot">
-        <div><span class="fi">${icon('thermo')}</span><span><span class="fv">${room.v}${room.u}</span><div class="fl">Room temp</div></span></div>
-        <div><span class="fi">${icon('wind')}</span><span><span class="fv">${cap(st.mode || '—')}</span><div class="fl">Mode</div></span></div>
-      </div>`;
+      ${foot}`;
   } else if (d.type === 'light') {
     const frac = o.brightness / 100;
     const hasCT = (d.capabilities || []).includes('color_temp');
@@ -436,6 +459,16 @@ function refreshSheetLive() {
     const w = st.power_w ?? 0;
     const softMax = Math.max(100, Math.ceil((w + 1) / 100) * 100);
     setDial(Math.min(1, w / softMax), 'var(--blue)', `${Math.round(w)}<small>W</small>`);
+  }
+  if (d.type === 'solar_appliance') {
+    const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+    set('saSolar', `${Math.round(st.solar_power_w || 0)} W`);
+    set('saGrid', `${Math.round(st.grid_power_w || 0)} W`);
+    const room = tempDisplay(st.current_temp_c); set('saRoom', `${room.v}${room.u}`);
+    if (st.solar_percent != null) {
+      const bar = document.getElementById('saBar'); if (bar) bar.style.width = st.solar_percent + '%';
+      set('saPct', `${st.solar_percent}% of load from solar`);
+    }
   }
 }
 

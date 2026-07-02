@@ -20,6 +20,8 @@ from .registry import Registry
 POWER_COOLDOWN_S = 300         # min seconds between a climate unit's on/off changes
 MODE_REVERSE_COOLDOWN_S = 300  # min seconds between heat<->cool switches (compressor reversal)
 _COOLING_MODES = ("cool", "dry")  # cool + dry drive the compressor the same way; heat reverses it
+# Types with a compressor to protect (the plain climate unit and the solar mini-split).
+COMPRESSOR_TYPES = ("climate", "solar_appliance")
 
 
 def _is_compressor_reverse(from_mode: Optional[str], to_mode: Optional[str]) -> bool:
@@ -64,13 +66,13 @@ class DevicePoller:
         )
 
     def power_cooldown_remaining(self, device: Device) -> int:
-        if device.type != "climate":
+        if device.type not in COMPRESSOR_TYPES:
             return 0
         t = self._last_power_change.get(device.id)
         return 0 if t is None else max(0, POWER_COOLDOWN_S - (int(self.clock()) - t))
 
     def mode_cooldown_remaining(self, device: Device) -> int:
-        if device.type != "climate":
+        if device.type not in COMPRESSOR_TYPES:
             return 0
         t = self._last_mode_reverse.get(device.id)
         return 0 if t is None else max(0, MODE_REVERSE_COOLDOWN_S - (int(self.clock()) - t))
@@ -86,7 +88,7 @@ class DevicePoller:
         cur_mode = cur.mode if cur else None
         reversing = "mode" in command and _is_compressor_reverse(cur_mode, str(command["mode"]))
 
-        if device.type == "climate":
+        if device.type in COMPRESSOR_TYPES:
             if "power" in command and self.power_cooldown_remaining(device) > 0:
                 return {"ok": False, "cooldown": True, "retry_after": self.power_cooldown_remaining(device), "reason": "power"}
             if reversing and self.mode_cooldown_remaining(device) > 0:
@@ -95,7 +97,7 @@ class DevicePoller:
         res = await backend.apply(device, command)
         if res.get("ok"):
             now = int(self.clock())
-            if device.type == "climate" and "power" in command:
+            if device.type in COMPRESSOR_TYPES and "power" in command:
                 self._last_power_change[device.id] = now
             if reversing:
                 self._last_mode_reverse[device.id] = now

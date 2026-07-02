@@ -29,6 +29,18 @@ DEFAULT_DP: Dict[str, Dict[str, str]] = {
     "switch": {"power": "1"},
     "light": {"power": "20", "brightness": "22", "color_temp": "23"},
     "climate": {"power": "1", "mode": "4", "setpoint": "2", "current_temp": "3"},
+    # EG4/Deye "Solar Aircon" mini-split: climate DPs + the LAN-only PV/grid metering block
+    # (106 solar W, 111 grid/AC W, 108 solar %, 109 grid %). Matches SolarPi's appliance.py.
+    "solar_appliance": {
+        "power": "1", "mode": "4", "setpoint": "2", "current_temp": "3",
+        "solar_power": "106", "grid_power": "111", "solar_percent": "108", "grid_percent": "109",
+    },
+}
+
+# Per-type default mode enum mapping (canonical -> device-native). The solar mini-split reports
+# cold/hot/wet/wind rather than cool/heat/dry/fan; a device can still override via options.mode_map.
+DEFAULT_MODE_MAP: Dict[str, Dict[str, str]] = {
+    "solar_appliance": {"cool": "cold", "heat": "hot", "dry": "wet", "fan": "wind"},
 }
 
 BRIGHT_SCALE_DEFAULT = 1000  # Tuya v2 lights use 10..1000; older lights use 255 (set options.bright_scale)
@@ -69,6 +81,11 @@ def _as_bool(v: object) -> Optional[bool]:
     if s in ("false", "off", "0"):
         return False
     return None
+
+
+def _int(v: object) -> Optional[int]:
+    n = _num(v)
+    return int(round(n)) if n is not None else None
 
 
 def _as_str(v: object) -> Optional[str]:
@@ -113,8 +130,10 @@ def _from_divisor(v: object, divisor: float) -> Optional[float]:
 
 
 def _mode_map(device: Device) -> Dict[str, str]:
-    m = device.option("mode_map", {}) or {}
-    return {str(k): str(v) for k, v in m.items()}
+    # Start from the type's default enum mapping, then let a per-device override win.
+    m = dict(DEFAULT_MODE_MAP.get(device.type, {}))
+    m.update({str(k): str(v) for k, v in (device.option("mode_map", {}) or {}).items()})
+    return m
 
 
 def _to_device_mode(device: Device, canonical: str) -> str:
@@ -152,6 +171,12 @@ def decode(device: Device, dps: Dict[str, object]) -> DeviceState:
         st.current_temp_c = _from_divisor(sig("current_temp"), _temp_divisor(device))
     if device.has("mode"):
         st.mode = _to_canonical_mode(device, _as_str(sig("mode")))
+    if device.has("solar_power"):
+        st.solar_power_w = _num(sig("solar_power"))
+        st.solar_percent = _int(sig("solar_percent"))
+    if device.has("grid_power"):
+        st.grid_power_w = _num(sig("grid_power"))
+        st.grid_percent = _int(sig("grid_percent"))
     return st
 
 

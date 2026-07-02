@@ -23,7 +23,12 @@ class DeviceState:
     mode: Optional[str] = None            # canonical CLIMATE_MODES value
     setpoint_c: Optional[float] = None    # target temperature, deg C
     current_temp_c: Optional[float] = None  # measured temperature, deg C
-    power_w: Optional[float] = None       # instantaneous draw, watts
+    power_w: Optional[float] = None       # instantaneous draw, watts (plugs)
+    # Solar mini-split metering (solar_appliance): PV vs. grid power + their % split.
+    solar_power_w: Optional[float] = None
+    grid_power_w: Optional[float] = None
+    solar_percent: Optional[int] = None
+    grid_percent: Optional[int] = None
     raw: Dict[str, object] = field(default_factory=dict)  # backend-native signals, for debugging
 
     def to_dict(self) -> Dict[str, object]:
@@ -36,6 +41,10 @@ class DeviceState:
             "setpoint_c": self.setpoint_c,
             "current_temp_c": self.current_temp_c,
             "power_w": self.power_w,
+            "solar_power_w": self.solar_power_w,
+            "grid_power_w": self.grid_power_w,
+            "solar_percent": self.solar_percent,
+            "grid_percent": self.grid_percent,
         }
 
 
