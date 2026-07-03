@@ -188,7 +188,7 @@ def main():
         else:
             print("  ! could not read live DPs:", err)
 
-        if active and d.get("type") in ("ac", "solar_ac"):
+        if active and d.get("type") in ("ac", "solar_ac", "solar_appliance", "climate"):
             print("  ACTIVE DRY PROBE:")
             find_dry(tinytuya, d)
 
