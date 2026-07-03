@@ -727,7 +727,13 @@ async function sheetMode(mode) {
   if (mode === 'off') o.power = false;
   else { o.power = true; o.mode = mode; }
   renderSheet();
-  const res = await sendCommand(o.id, mode === 'off' ? { power: false } : { power: true, mode });
+  // Only send a power write when we're actually turning the unit on from off. Switching modes on
+  // an already-on unit sends just the mode, so it isn't caught by the compressor power cooldown.
+  let cmd;
+  if (mode === 'off') cmd = { power: false };
+  else if (!prevPower) cmd = { power: true, mode };
+  else cmd = { mode };
+  const res = await sendCommand(o.id, cmd);
   if (!res || !res.ok) { o.mode = prevMode; o.power = prevPower; }  // rejected (e.g. cooldown) -> revert
   renderSheet();
 }

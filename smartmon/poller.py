@@ -86,10 +86,16 @@ class DevicePoller:
 
         cur = self.states.get(device.id)
         cur_mode = cur.mode if cur else None
+        cur_power = cur.power if cur else None
+        # A power write only counts (for gating and for arming the cooldown) when it actually
+        # flips the unit's on/off state. The sheet sends a redundant power:true alongside a mode
+        # change on an already-on unit; that's a no-op for the compressor and must not trip the
+        # cooldown — otherwise switching e.g. Cool->Dry starts a countdown but never changes mode.
+        switching_power = "power" in command and bool(command["power"]) != bool(cur_power)
         reversing = "mode" in command and _is_compressor_reverse(cur_mode, str(command["mode"]))
 
         if device.type in COMPRESSOR_TYPES:
-            if "power" in command and self.power_cooldown_remaining(device) > 0:
+            if switching_power and self.power_cooldown_remaining(device) > 0:
                 return {"ok": False, "cooldown": True, "retry_after": self.power_cooldown_remaining(device), "reason": "power"}
             if reversing and self.mode_cooldown_remaining(device) > 0:
                 return {"ok": False, "cooldown": True, "retry_after": self.mode_cooldown_remaining(device), "reason": "mode_reverse"}
@@ -97,7 +103,7 @@ class DevicePoller:
         res = await backend.apply(device, command)
         if res.get("ok"):
             now = int(self.clock())
-            if device.type in COMPRESSOR_TYPES and "power" in command:
+            if device.type in COMPRESSOR_TYPES and switching_power:
                 self._last_power_change[device.id] = now
             if reversing:
                 self._last_mode_reverse[device.id] = now

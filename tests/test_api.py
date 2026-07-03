@@ -96,6 +96,24 @@ class TestCompressorCooldown(unittest.TestCase):
         self.assertTrue(asyncio.run(poller.apply(ac, {"mode": "dry"}))["ok"])
         self.assertTrue(asyncio.run(poller.apply(ac, {"mode": "cool"}))["ok"])
 
+    def test_mode_change_with_redundant_power_is_free(self):
+        # Regression: the sheet sends {power:true, mode} on a mode tap. The unit is already on, so
+        # that power write is a no-op and must neither arm nor be blocked by the power cooldown —
+        # otherwise switching Cool->Dry starts a countdown but never actually changes the mode.
+        clock = FakeClock()
+        reg = compressor_registry()  # starts on + cool
+        poller = DevicePoller(reg, interval_s=10, clock=clock)
+        asyncio.run(poller.poll_once())
+        ac = reg.by_id["ac"]
+
+        self.assertTrue(asyncio.run(poller.apply(ac, {"power": True, "mode": "dry"}))["ok"])
+        self.assertEqual(poller.power_cooldown_remaining(ac), 0)  # no bogus cooldown armed
+        # and the mode actually took effect
+        self.assertEqual(poller.states[ac.id].mode, "dry")
+        # a second same-side switch right after is still free
+        self.assertTrue(asyncio.run(poller.apply(ac, {"power": True, "mode": "cool"}))["ok"])
+        self.assertEqual(poller.states[ac.id].mode, "cool")
+
     def test_reversing_mode_switch_is_gated(self):
         clock = FakeClock()
         reg = compressor_registry()
