@@ -46,7 +46,7 @@
       "ip": "192.168.1.53",
       "device_id": "xxxxxxxxxxxxxxxxxxxx",
       "local_key": "xxxxxxxxxxxxxxxx",
-      "_note": "The EG4/Deye 'Solar Aircon' mini-split (same unit SolarPi reads). The solar_ac type surfaces its PV power (DP 106) and grid/AC power (DP 111) split, knows this unit's cold/hot/wet mode names (no mode_map needed), and controls fan speed on DP 23. Set options.temp_divisor to 10 if a live status() shows temps in tenths, or options.fan_speeds if your unit's fan enum differs from auto/low/medium/high. (Type 'ac' is a plain A/C without the solar metering.)"
+      "_note": "The EG4/Deye 'Solar Aircon' mini-split (same unit SolarPi reads). The solar_ac type surfaces its PV power (DP 106) and grid/AC power (DP 111) split, knows this unit's mixed cold/hot/dry/wind mode names (no mode_map needed), and controls fan speed on DP 23. Set options.temp_divisor to 10 if a live status() shows temps in tenths, or options.fan_speeds if your unit's fan enum differs from auto/low/medium/high. (Type 'ac' is a plain A/C without the solar metering.)"
     },
     {
       "id": "old-lamp",

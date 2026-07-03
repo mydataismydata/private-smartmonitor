@@ -39,7 +39,7 @@ A device's `type` fixes its capabilities, which is what the UI renders controls 
 `solar_ac` (**"Solar A/C"**) is the EG4/Deye "Solar Aircon" mini-split (the unit SolarPi reads): an
 A/C that also meters its **PV power (DP 106)** and **grid/AC power (DP 111)** on LAN-only datapoints —
 pick this type, not `plug`, or you'll read the wrong DP and see a meaningless wattage. It already
-knows the unit's `cold`/`hot`/`wet` mode names, so no `mode_map` is needed. Plain `ac` is the same
+knows the unit's mixed `cold`/`hot`/`dry`/`wind` mode names, so no `mode_map` is needed. Plain `ac` is the same
 thermostat without the solar metering.
 
 Fan speed (DP 23) is passed through as the device's own enum; the selector offers

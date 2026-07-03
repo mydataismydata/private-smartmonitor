@@ -146,6 +146,14 @@ class TestTuyaCodec(unittest.TestCase):
         self.assertEqual(dict(tuya.encode(d, {"mode": "cool"}))["4"], "cold")
         self.assertEqual(dict(tuya.encode(d, {"mode": "heat"}))["4"], "hot")
 
+    def test_solar_ac_dry_is_dry_not_wet(self):
+        # This real EG4/Deye unit's dehumidify token is "dry", not "wet" (confirmed via
+        # probe_device.py: sending "wet" was rejected and bounced the unit to Auto).
+        d = tuya_dev("solar_ac")
+        self.assertEqual(dict(tuya.encode(d, {"mode": "dry"}))["4"], "dry")
+        self.assertEqual(dict(tuya.encode(d, {"mode": "fan"}))["4"], "wind")
+        self.assertEqual(tuya.decode(d, {"1": True, "4": "dry"}).mode, "dry")  # native -> canonical
+
     def test_fan_speed_decode_and_encode(self):
         d = tuya_dev("ac")
         self.assertEqual(tuya.decode(d, {"1": True, "23": "high"}).fan_speed, "high")  # DP 23, raw

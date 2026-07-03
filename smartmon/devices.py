@@ -41,7 +41,7 @@ CAPABILITIES: Dict[str, Tuple[str, ...]] = {
 }
 
 # Canonical A/C modes the UI/API speak. A backend maps these onto whatever the
-# hardware calls them (e.g. Tuya's cool/cold, dry/wet) via a per-device mode_map.
+# hardware calls them (e.g. Tuya's cool->cold, fan->wind) via a per-device mode_map.
 AC_MODES = ("auto", "cool", "heat", "dry", "fan")
 
 # Fan-speed options the A/C's fan selector offers. Passed through to the device as-is (no
@@ -78,7 +78,7 @@ class Device:
     #   dps: capability/signal name -> Tuya DP number, when a device deviates from
     #        the type's default DP map (see backends/tuya.py DEFAULT_DP).
     #   options: tuning knobs, e.g. {"bright_scale": 255, "power_divisor": 1,
-    #            "mode_map": {"cool": "cold", "heat": "hot", "dry": "wet"}}.
+    #            "mode_map": {"cool": "cold", "fan": "wind"}}.
     dps: Dict[str, str] = field(default_factory=dict)
     options: Dict[str, object] = field(default_factory=dict)
 

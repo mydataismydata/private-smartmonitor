@@ -37,10 +37,13 @@ DEFAULT_DP: Dict[str, Dict[str, str]] = {
     },
 }
 
-# Per-type default mode enum mapping (canonical -> device-native). The solar mini-split reports
-# cold/hot/wet/wind rather than cool/heat/dry/fan; a device can still override via options.mode_map.
+# Per-type default mode enum mapping (canonical -> device-native). The EG4/Deye "Solar Aircon"
+# mini-split uses a MIXED enum, confirmed against a real unit with probe_device.py: cooling is
+# "cold" and heating "hot" (Chinese-style), but dehumidify is "dry" (NOT the usual "wet" — sending
+# "wet" is rejected and the unit falls back to Auto) and fan is "wind". A device can still override
+# any of these via options.mode_map.
 DEFAULT_MODE_MAP: Dict[str, Dict[str, str]] = {
-    "solar_ac": {"cool": "cold", "heat": "hot", "dry": "wet", "fan": "wind"},
+    "solar_ac": {"cool": "cold", "heat": "hot", "dry": "dry", "fan": "wind"},
 }
 
 BRIGHT_SCALE_DEFAULT = 1000  # Tuya v2 lights use 10..1000; older lights use 255 (set options.bright_scale)
