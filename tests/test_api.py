@@ -9,6 +9,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from smartmon import api  # noqa: E402
+from smartmon.backends.base import DeviceState  # noqa: E402
 from smartmon.backends.demo import demo_devices  # noqa: E402
 from smartmon.devices import Device  # noqa: E402
 from smartmon.poller import DevicePoller  # noqa: E402
@@ -153,6 +154,43 @@ class TestCompressorCooldown(unittest.TestCase):
             for _ in range(4):  # rapid toggles are fine
                 self.assertTrue(asyncio.run(poller.apply(dev, {"power": True}))["ok"])
                 self.assertTrue(asyncio.run(poller.apply(dev, {"power": False}))["ok"])
+
+
+class _StaleBackend:
+    """Simulates a Tuya unit whose read after a write lies: it keeps reporting power=ON (a stale
+    echo, or the last-known value because it dropped off Wi-Fi once turned off)."""
+
+    async def read(self, device):
+        return DeviceState(online=True, power=True)  # always ON, regardless of what was applied
+
+    async def apply(self, device, command):
+        return {"ok": True}
+
+
+class TestControlStateTrust(unittest.TestCase):
+    def _poller(self):
+        reg = Registry([Device(id="ac", name="AC", type="ac", protocol="demo",
+                               options={"demo_power": True})], demo=True)
+        reg._backends["demo"] = _StaleBackend()
+        p = DevicePoller(reg, interval_s=10)
+        asyncio.run(p.poll_once())  # seeds cache as ON via the stale read
+        return p, reg.by_id["ac"]
+
+    def test_off_sticks_even_when_device_reads_stale_on(self):
+        # The bug: an automation/user turns the A/C off, but the post-write read echoes ON, so the
+        # UI kept showing it on. The cache must trust the command over the stale read.
+        poller, ac = self._poller()
+        self.assertTrue(poller.states["ac"].power)                 # stale ON to start
+        res = asyncio.run(poller.apply(ac, {"power": False}))
+        self.assertTrue(res["ok"])
+        self.assertFalse(poller.states["ac"].power)                # off sticks despite the stale read
+
+    def test_control_fields_follow_command(self):
+        poller, ac = self._poller()
+        asyncio.run(poller.apply(ac, {"power": True, "mode": "cool", "setpoint": 21}))
+        st = poller.states["ac"]
+        self.assertEqual(st.mode, "cool")
+        self.assertEqual(st.setpoint_c, 21)
 
 
 if __name__ == "__main__":

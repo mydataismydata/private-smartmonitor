@@ -110,8 +110,36 @@ class DevicePoller:
                 self._last_power_change[device.id] = now
             if reversing:
                 self._last_mode_reverse[device.id] = now
+            # Refresh from the device for fresh metrics, then trust the command for the control
+            # fields. Real Tuya units often echo their PRE-change dps on the read right after a
+            # write (so power looks unchanged), and some mini-splits drop off Wi-Fi once powered
+            # off (so every later read fails and the poller keeps the last-known ON). Either way the
+            # device's report can't be trusted right after a control write — the command can.
             await self.poll_device(device)
+            self._apply_command_to_state(device, command)
         return res
+
+    def _apply_command_to_state(self, device: Device, command: Command) -> None:
+        """Overlay a just-applied command's control fields onto the cached state, so the UI reflects
+        the change immediately even when the device echoes a stale read or goes unreachable."""
+        st = self.states.get(device.id)
+        if st is None:
+            st = DeviceState(online=True)
+            self.states[device.id] = st
+            self.last_ts[device.id] = int(self.clock())
+        if "power" in command:
+            st.power = bool(command["power"])
+        if command.get("mode") is not None:
+            st.mode = str(command["mode"])
+        if command.get("fan") is not None:
+            st.fan_speed = str(command["fan"])
+        for key, attr in (("setpoint", "setpoint_c"), ("brightness", "brightness"), ("color_temp", "color_temp")):
+            if key in command:
+                try:
+                    val = float(command[key])
+                except (TypeError, ValueError):
+                    continue
+                setattr(st, attr, val if key == "setpoint" else int(round(val)))
 
     async def run(self, stop_event: Optional[asyncio.Event] = None) -> None:
         while not (stop_event and stop_event.is_set()):
