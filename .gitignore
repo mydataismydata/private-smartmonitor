@@ -10,6 +10,9 @@ venv/
 # Commit smartmon.example.json instead; each deployment keeps its own smartmon.json.
 smartmon.json
 
+# Automations (routines) — deployment-specific (they reference this box's device ids).
+automations.json
+
 # tinytuya's own files, in case `tinytuya wizard`/`scan` is ever run inside the repo.
 devices.json
 snapshot.json

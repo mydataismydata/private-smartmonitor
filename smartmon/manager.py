@@ -13,8 +13,10 @@ so you never have to re-enter a secret just to rename a device or move it to ano
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Dict, List, Optional
 
+from . import automations as autos
 from . import store
 from .config import Config
 from .devices import Device, DeviceConfigError
@@ -31,6 +33,11 @@ class DeviceManager:
         self._lock: Optional[asyncio.Lock] = None  # created lazily so __init__ needn't run in a loop
         self.registry = Registry.from_config(cfg)
         self.poller = DevicePoller(self.registry, interval_s=cfg.poll_interval_s)
+        # Automations own their own store (with persistence); the engine edge-evaluates them and
+        # the poller fires the due ones each cycle via our hook (so cooldowns still apply).
+        self.automations = autos.AutomationStore.from_config(cfg)
+        self.engine = autos.AutomationEngine(self.automations)
+        self.poller.cycle_hook = self.tick_automations
 
     def _get_lock(self) -> asyncio.Lock:
         # Bind the lock to the running loop on first use (Python 3.8-safe). The check+set is
@@ -99,6 +106,48 @@ class DeviceManager:
                 return {"ok": False, "error": "unknown device"}
             await self._commit(kept)
             return {"ok": True, "id": device_id}
+
+    # ---- automations ----------------------------------------------------------
+
+    async def tick_automations(self) -> None:
+        """Poll-loop hook: fire every automation whose trigger just became satisfied. Actions go
+        through poller.apply so the compressor cooldowns still gate them; a blocked action simply
+        isn't marked fired and is retried on a later cycle."""
+        tc = autos.now_context(time.time(), time.localtime())
+        for decision in self.engine.due(tc, self.poller.states, self.registry):
+            res = await self.poller.apply(decision.device, decision.command)
+            if res.get("ok"):
+                self.engine.mark_fired(decision.automation_id, tc)
+
+    async def add_automation(self, raw: Dict[str, object]) -> Dict[str, object]:
+        async with self._get_lock():
+            return self.automations.add(raw)
+
+    async def update_automation(self, automation_id: str, raw: Dict[str, object]) -> Dict[str, object]:
+        async with self._get_lock():
+            return self.automations.update(automation_id, raw)
+
+    async def remove_automation(self, automation_id: str) -> Dict[str, object]:
+        async with self._get_lock():
+            return self.automations.remove(automation_id)
+
+    async def toggle_automation(self, automation_id: str, enabled: bool) -> Dict[str, object]:
+        async with self._get_lock():
+            return self.automations.toggle(automation_id, enabled)
+
+    async def run_automation(self, automation_id: str) -> Dict[str, object]:
+        """Fire an automation's action now, ignoring its trigger (the UI 'Run now' button).
+        Still honors the compressor cooldowns via poller.apply."""
+        a = self.automations.by_id.get(automation_id)
+        if a is None:
+            return {"ok": False, "error": "unknown automation"}
+        dev = self.registry.by_id.get(a.action.device_id)
+        if dev is None:
+            return {"ok": False, "error": "automation target device is not configured"}
+        res = await self.poller.apply(dev, dict(a.action.command))
+        if res.get("ok"):
+            self.engine.mark_fired(automation_id, autos.now_context(time.time(), time.localtime()))
+        return res
 
     def _merge(self, existing: Device, raw: Dict[str, object]) -> Device:
         """Overlay the submitted fields onto the existing config. Blank/omitted local_key

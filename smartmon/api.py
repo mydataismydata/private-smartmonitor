@@ -63,12 +63,27 @@ def one_device_payload(registry: Registry, poller: DevicePoller, device_id: str)
     return out
 
 
-def automations_payload(store: AutomationStore, registry: Registry) -> Dict[str, object]:
+def automations_payload(store: AutomationStore, registry: Registry, engine=None) -> Dict[str, object]:
     def name_of(dev_id: str) -> str:
         d = registry.by_id.get(dev_id)
         return d.name if d else dev_id
 
-    return {"automations": [a.public_dict(name_of) for a in store.automations]}
+    def one(a):
+        last_fired = engine.last_fired(a.id) if engine else None
+        active = engine.is_active(a.id) if engine else None
+        return a.public_dict(name_of, last_fired=last_fired, active=active)
+
+    return {"automations": [one(a) for a in store.automations]}
+
+
+def one_automation_payload(store: AutomationStore, automation_id: str) -> Dict[str, object]:
+    """The raw config for one automation, for the edit form (no runtime status)."""
+    a = store.by_id.get(automation_id)
+    if a is None:
+        return {"available": False}
+    out = a.to_dict()
+    out["available"] = True
+    return out
 
 
 def device_config_payload(manager, device_id: str) -> Dict[str, object]:

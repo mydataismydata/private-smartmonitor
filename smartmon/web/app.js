@@ -240,25 +240,82 @@ function renderRooms() {
 }
 
 /* ---- render: automation --------------------------------------------------- */
+const TRIG_ICON = { schedule: 'clock', solar: 'sun', temperature: 'thermo' };
+const DAY_ABBR = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function fmtTime12(hhmm) {
+  const [h, m] = String(hhmm || '0:0').split(':').map(Number);
+  const ap = h < 12 ? 'AM' : 'PM';
+  return `${(h % 12) === 0 ? 12 : h % 12}:${String(m || 0).padStart(2, '0')} ${ap}`;
+}
+function fmtDays(days) {
+  if (!days || !days.length) return 'every day';
+  const s = [...days].sort((a, b) => a - b);
+  if (s.length === 5 && s.every((d, i) => d === i)) return 'weekdays';
+  if (s.length === 2 && s[0] === 5 && s[1] === 6) return 'weekends';
+  return s.map((d) => DAY_ABBR[d]).join(', ');
+}
+function triggerSummary(a) {
+  const t = a.trigger || {};
+  if (t.type === 'schedule') return `At ${fmtTime12(t.at)}, ${fmtDays(t.days)}`;
+  const who = a.source_name || t.source || 'device';
+  const dir = t.comparator === 'below' ? 'below' : 'above';
+  if (t.type === 'solar') return `When ${who} solar goes ${dir} ${Math.round(t.value)} W`;
+  const tmp = tempDisplay(t.value);           // stored °C -> user's unit
+  return `When ${who} temp goes ${dir} ${tmp.v}${tmp.u}`;
+}
+function actionSummary(a) {
+  const c = (a.action && a.action.command) || {};
+  const who = a.target_name || a.target_id || 'device';
+  if (c.power === false) return `Turn off ${who}`;
+  const bits = [];
+  if (c.mode) bits.push(cap(c.mode));
+  if (c.setpoint != null) { const t = tempDisplay(c.setpoint); bits.push(`${t.v}${t.u}`); }
+  if (c.fan) bits.push(`fan ${c.fan}`);
+  if (c.brightness != null) bits.push(`${c.brightness}%`);
+  return `Turn on ${who}${bits.length ? ' · ' + bits.join(' ') : ''}`;
+}
+function fmtAgo(epoch) {
+  if (!epoch) return '';
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - epoch));
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
 function renderAutomations() {
-  const list = state.automations;
-  $('#autoNote').textContent =
-    'Routines are a scaffold in this build: toggles persist in memory. The scheduler that fires them on a timer arrives in a later phase.';
-  $('#automations').innerHTML = list.map((a) => {
-    const names = a.device_names || [];
-    const shown = names.slice(0, 2);
-    const extra = names.length - shown.length;
-    const chips = shown.map((n) => `<span class="meta-chip">${icon('plug')}${n}</span>`).join('');
-    const more = extra > 0 ? `<span class="meta-chip more">+${extra} more device${extra > 1 ? 's' : ''} connected</span>` : '';
-    const time = a.time_range ? `<span class="meta-chip">${icon('clock')}${a.time_range}</span>` : '';
-    return `<div class="card auto" data-auto="${a.id}">
+  const list = state.automations || [];
+  const wrap = $('#automations'), empty = $('#autoEmpty');
+  if (!list.length) {
+    wrap.innerHTML = '';
+    empty.hidden = false;
+    empty.innerHTML = `
+      <div class="o-ic">${icon('clock')}</div>
+      <h2>No routines yet</h2>
+      <p>Create a routine to run a device automatically — on a schedule, when solar output is high, or when a room gets warm.</p>
+      <div class="o-actions"><button class="btn-primary" data-add-auto>${icon('plus')}<span>New routine</span></button></div>`;
+    return;
+  }
+  empty.hidden = true;
+  wrap.innerHTML = list.map((a) => {
+    const tic = TRIG_ICON[a.trigger ? a.trigger.type : ''] || 'clock';
+    const live = a.active ? `<span class="auto-live" title="Trigger condition is met right now">Active</span>` : '';
+    const last = a.last_fired ? `<span class="auto-last">Ran ${fmtAgo(a.last_fired)}</span>` : '';
+    return `<div class="card auto ${a.enabled ? '' : 'is-off'}" data-auto="${a.id}">
       <div class="auto-top">
-        <span class="auto-ic ${a.icon}">${icon(a.icon === 'sun' ? 'sun' : a.icon === 'moon' ? 'moon' : a.icon === 'away' ? 'away' : 'clock')}</span>
-        <span class="auto-titles"><div class="auto-name">${a.name}</div><div class="auto-sub">${a.subtitle}</div></span>
+        <span class="auto-ic ${a.trigger ? a.trigger.type : ''}">${icon(tic)}</span>
+        <span class="auto-titles">
+          <div class="auto-name">${esc(a.name)}${live}</div>
+          <div class="auto-sub">${esc(triggerSummary(a))}</div>
+        </span>
         <label class="switch" data-auto-toggle><input type="checkbox" ${a.enabled ? 'checked' : ''} /><i></i></label>
       </div>
-      <div class="auto-meta">
-        <span class="meta-chip">${icon('pin')}${a.scope}</span>${time}${chips}${more}
+      <div class="auto-action">${icon('bolt')}<span>${esc(actionSummary(a))}</span></div>
+      <div class="auto-foot">
+        ${last}<span class="spacer"></span>
+        <button class="chip-btn" data-auto-run="${a.id}">${icon('power')}<span>Run now</span></button>
+        <button class="chip-btn" data-auto-edit="${a.id}">${icon('pencil')}<span>Edit</span></button>
       </div>
     </div>`;
   }).join('');
@@ -751,6 +808,25 @@ function bindSheetEvents() {
   const sheet = $('#sheet');
   sheet.addEventListener('click', (e) => {
     if (e.target.closest('[data-close]')) return closeSheet();
+    // automation builder controls
+    const trig = e.target.closest('[data-trig]');
+    if (trig) {
+      $('#a_ttype').value = trig.dataset.trig;
+      $$('#trigPick [data-trig]').forEach((b) => b.classList.toggle('active', b === trig));
+      $$('[data-trig-body]').forEach((el) => { el.hidden = el.dataset.trigBody !== trig.dataset.trig; });
+      return;
+    }
+    const day = e.target.closest('[data-day]');
+    if (day) { day.classList.toggle('active'); return; }
+    const pwr = e.target.closest('[data-power]');
+    if (pwr) {
+      $('#a_power').value = pwr.dataset.power;
+      $$('#powerSeg [data-power]').forEach((b) => b.classList.toggle('active', b === pwr));
+      return syncAutomationAction();
+    }
+    if (e.target.closest('[data-save-auto]')) return submitAutomation();
+    const rmAuto = e.target.closest('[data-remove-auto]');
+    if (rmAuto) return removeAutomation(rmAuto.dataset.removeAuto);
     const step = e.target.closest('[data-step]');
     if (step) return sheetStep(Number(step.dataset.step));
     const mode = e.target.closest('[data-mode]');
@@ -777,6 +853,7 @@ function bindSheetEvents() {
     if (e.target.closest('[data-add-manual]')) return openAddForm({});
   });
   sheet.addEventListener('change', (e) => {
+    if (e.target.id === 'a_target') return syncAutomationAction();  // builder: action fields follow the target
     const o = state.open; if (!o) return;
     if (e.target.closest('[data-sheet-power]')) {
       sendCommand(o.id, { power: e.target.checked }).then(renderSheet);
@@ -814,6 +891,222 @@ async function toggleAutomation(id, enabled, inputEl) {
   }
 }
 
+/* ---- automation builder --------------------------------------------------- */
+const TRIG_TYPES = [
+  { t: 'schedule', label: 'Schedule', ic: 'clock' },
+  { t: 'solar', label: 'Solar', ic: 'sun' },
+  { t: 'temperature', label: 'Temperature', ic: 'thermo' },
+];
+
+function devicesWith(capability) {
+  return (state.data.devices || []).filter((d) => (d.capabilities || []).includes(capability));
+}
+function deviceOptions(devs, selected) {
+  return devs.map((d) => `<option value="${esc(d.id)}" ${d.id === selected ? 'selected' : ''}>${esc(d.name)}</option>`).join('');
+}
+function uniqueAutoId(base) {
+  const ids = new Set((state.automations || []).map((a) => a.id));
+  if (!ids.has(base)) return base;
+  let n = 2; while (ids.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
+function openAddAutomation() { renderAutomationForm({ mode: 'add', data: {} }); }
+async function openEditAutomation(id) {
+  try {
+    const cfg = await api(`/api/automations/${id}`);
+    if (!cfg.available) return toast('Routine not found', true);
+    renderAutomationForm({ mode: 'edit', id, data: cfg });
+  } catch (_) { toast('Could not load routine', true); }
+}
+
+function renderAutomationForm({ mode, id, data }) {
+  data = data || {};
+  const trig = data.trigger || { type: 'schedule' };
+  const cmd = (data.action && data.action.command) || {};
+  const ttype = trig.type || 'schedule';
+  const allDevs = state.data.devices || [];
+  const target = (data.action && data.action.device_id) || (allDevs[0] && allDevs[0].id) || '';
+  const cmp = trig.comparator || 'above';
+  const unit = state.settings.fahrenheit ? '°F' : '°C';
+  const toU = (c) => Math.round(state.settings.fahrenheit ? c * 9 / 5 + 32 : c);
+  const solarVal = (ttype === 'solar' && trig.value != null) ? Math.round(trig.value) : 500;
+  const tempVal = toU((ttype === 'temperature' && trig.value != null) ? trig.value : 24);
+  const power = cmd.power !== false;
+  const acMode = cmd.mode || 'cool';
+  const spVal = toU(cmd.setpoint != null ? cmd.setpoint : 22);
+  const days = trig.days || [];
+  const opt = (v, sel, label) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${label}</option>`;
+
+  showModal(`
+    <div class="sheet-head">
+      <div><div class="sheet-title">${mode === 'edit' ? 'Edit routine' : 'New routine'}</div>
+        <div class="sheet-sub">Automation</div></div>
+      <button class="sheet-close" data-close>${icon('close')}</button>
+    </div>
+    <div class="form" id="autoForm" data-mode="${mode}" ${mode === 'edit' ? `data-id="${esc(id)}"` : ''}>
+      <div class="form-row">
+        <label>Name <span class="req">*</span></label>
+        <input id="a_name" value="${esc(data.name || '')}" placeholder="e.g. Free Solar Cooling" />
+      </div>
+
+      <div class="form-row">
+        <label>When…</label>
+        <div class="type-pick trig-pick" id="trigPick">
+          ${TRIG_TYPES.map((t) => `<button type="button" data-trig="${t.t}" class="${t.t === ttype ? 'active' : ''}">${icon(t.ic)}<span>${t.label}</span></button>`).join('')}
+        </div>
+        <input type="hidden" id="a_ttype" value="${ttype}" />
+      </div>
+
+      <div class="trig-params" data-trig-body="schedule" ${ttype === 'schedule' ? '' : 'hidden'}>
+        <div class="form-row"><label>Time</label><input type="time" id="a_at" value="${esc(trig.at || '07:00')}" /></div>
+        <div class="form-row"><label>Days <span class="hint-inline">none = every day</span></label>
+          <div class="day-pick" id="dayPick">
+            ${DAY_ABBR.map((d, i) => `<button type="button" class="day ${days.includes(i) ? 'active' : ''}" data-day="${i}">${d}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="trig-params" data-trig-body="solar" ${ttype === 'solar' ? '' : 'hidden'}>
+        <div class="form-row"><label>Solar source</label>
+          <select id="a_solar_src">${deviceOptions(devicesWith('solar_power'), trig.source)}</select>
+          ${devicesWith('solar_power').length ? '' : '<span class="hint warn">No solar-metering devices yet — add a Solar A/C.</span>'}
+        </div>
+        <div class="form-row split">
+          <div class="form-row"><label>Goes</label><select id="a_solar_cmp">${opt('above', cmp, 'above')}${opt('below', cmp, 'below')}</select></div>
+          <div class="form-row"><label>Watts</label><input type="number" id="a_solar_val" value="${solarVal}" min="0" step="50" /></div>
+        </div>
+      </div>
+
+      <div class="trig-params" data-trig-body="temperature" ${ttype === 'temperature' ? '' : 'hidden'}>
+        <div class="form-row"><label>Temperature source</label>
+          <select id="a_temp_src">${deviceOptions(devicesWith('temperature'), trig.source)}</select>
+          ${devicesWith('temperature').length ? '' : '<span class="hint warn">No A/C units reporting temperature yet.</span>'}
+        </div>
+        <div class="form-row split">
+          <div class="form-row"><label>Goes</label><select id="a_temp_cmp">${opt('above', cmp, 'above')}${opt('below', cmp, 'below')}</select></div>
+          <div class="form-row"><label>Temp (${unit})</label><input type="number" id="a_temp_val" value="${tempVal}" step="1" /></div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Then control <span class="req">*</span></label>
+        <select id="a_target">${deviceOptions(allDevs, target)}</select>
+      </div>
+      <div class="form-row">
+        <label>Set to</label>
+        <div class="seg" id="powerSeg">
+          <button type="button" data-power="on" class="${power ? 'active' : ''}">On</button>
+          <button type="button" data-power="off" class="${power ? '' : 'active'}">Off</button>
+        </div>
+        <input type="hidden" id="a_power" value="${power ? 'on' : 'off'}" />
+      </div>
+
+      <div class="act-params" id="actAc" hidden>
+        <div class="form-row split">
+          <div class="form-row"><label>Mode</label><select id="a_mode">${MODES.map((m) => opt(m.m, acMode, m.label)).join('')}</select></div>
+          <div class="form-row"><label>Setpoint (${unit})</label><input type="number" id="a_setpoint" value="${spVal}" step="1" /></div>
+        </div>
+      </div>
+      <div class="act-params" id="actLight" hidden>
+        <div class="form-row"><label>Brightness</label><input type="number" id="a_brightness" value="${cmd.brightness != null ? cmd.brightness : 80}" min="1" max="100" /></div>
+      </div>
+
+      <div class="form-error" id="autoError"></div>
+      <div class="form-actions">
+        ${mode === 'edit' ? `<button class="btn-danger" data-remove-auto="${esc(id)}">${icon('trash')}<span>Delete</span></button>` : ''}
+        <span class="spacer"></span>
+        <button class="btn-ghost" data-close>Cancel</button>
+        <button class="btn-primary" data-save-auto>${mode === 'edit' ? 'Save' : 'Create'}</button>
+      </div>
+    </div>`);
+  syncAutomationAction();
+}
+
+// Show the action controls that match the chosen target device (A/C setpoint/mode, or light brightness).
+function syncAutomationAction() {
+  const dev = deviceById($('#a_target') ? $('#a_target').value : '');
+  const on = ($('#a_power') ? $('#a_power').value : 'on') === 'on';
+  const isAc = !!dev && (dev.type === 'ac' || dev.type === 'solar_ac');
+  const isLight = !!dev && dev.type === 'light';
+  if ($('#actAc')) $('#actAc').hidden = !(isAc && on);
+  if ($('#actLight')) $('#actLight').hidden = !(isLight && on);
+}
+
+function collectAutomation() {
+  const val = (id) => { const el = $('#' + id); return el ? el.value.trim() : ''; };
+  const fromU = (n) => state.settings.fahrenheit ? (n - 32) * 5 / 9 : n;   // user unit -> °C
+  const ttype = val('a_ttype');
+  const trigger = { type: ttype };
+  if (ttype === 'schedule') {
+    trigger.at = val('a_at') || '07:00';
+    trigger.days = $$('#dayPick .day.active').map((b) => Number(b.dataset.day));
+  } else if (ttype === 'solar') {
+    trigger.source = val('a_solar_src');
+    trigger.comparator = val('a_solar_cmp');
+    trigger.value = parseFloat(val('a_solar_val')) || 0;
+  } else {
+    trigger.source = val('a_temp_src');
+    trigger.comparator = val('a_temp_cmp');
+    trigger.value = fromU(parseFloat(val('a_temp_val')));
+  }
+  const target = val('a_target');
+  const on = val('a_power') === 'on';
+  const command = { power: on };
+  const dev = deviceById(target);
+  if (on && dev && (dev.type === 'ac' || dev.type === 'solar_ac')) {
+    command.mode = val('a_mode');
+    const sp = parseFloat(val('a_setpoint'));
+    if (!isNaN(sp)) command.setpoint = Math.round(fromU(sp) * 10) / 10;
+  } else if (on && dev && dev.type === 'light') {
+    const b = parseFloat(val('a_brightness'));
+    if (!isNaN(b)) command.brightness = Math.max(1, Math.min(100, Math.round(b)));
+  }
+  return { name: val('a_name'), enabled: true, trigger, action: { device_id: target, command } };
+}
+
+async function submitAutomation() {
+  const err = $('#autoError'); if (err) err.textContent = '';
+  const form = $('#autoForm'); const mode = form.dataset.mode; const id = form.dataset.id;
+  const body = collectAutomation();
+  if (!body.name) { err.textContent = 'Give the routine a name.'; return; }
+  if (!body.action.device_id) { err.textContent = 'Pick a device to control.'; return; }
+  if ((body.trigger.type === 'solar' || body.trigger.type === 'temperature') && !body.trigger.source) {
+    err.textContent = 'Pick a source device for the trigger.'; return;
+  }
+  let res;
+  try {
+    if (mode === 'edit') {
+      const cur = (state.automations || []).find((x) => x.id === id);
+      body.enabled = cur ? cur.enabled : true;            // preserve on/off across edits
+      res = await put(`/api/automations/${id}`, body);
+    } else {
+      body.id = uniqueAutoId(slugify(body.name));
+      res = await post('/api/automations', body);
+    }
+  } catch (_) { err.textContent = 'Request failed.'; return; }
+  if (res && res.ok) { closeSheet(); await refreshAutomations(); toast(mode === 'edit' ? 'Routine saved' : 'Routine created'); }
+  else { err.textContent = (res && res.error) || 'Could not save the routine.'; }
+}
+
+async function runAutomation(id) {
+  try {
+    const res = await post(`/api/automations/${id}/run`, {});
+    if (res && res.ok) { toast('Routine ran'); await Promise.all([refresh(), refreshAutomations()]); }
+    else if (res && res.cooldown) toast(`Compressor cooling down — try again in ${res.retry_after}s`, true);
+    else toast((res && res.error) || 'Could not run routine', true);
+  } catch (_) { toast('Could not run routine', true); }
+}
+
+async function removeAutomation(id) {
+  if (!confirm('Delete this routine?')) return;
+  try {
+    const res = await del(`/api/automations/${id}`);
+    if (res && res.ok) { closeSheet(); await refreshAutomations(); toast('Routine deleted'); }
+    else toast((res && res.error) || 'Could not delete routine', true);
+  } catch (_) { toast('Could not delete routine', true); }
+}
+
 /* ---- views ---------------------------------------------------------------- */
 function switchView(view) {
   state.view = view;
@@ -837,7 +1130,7 @@ async function refreshAutomations() {
 
 function startPolling() {
   clearInterval(state.timer);
-  if (state.settings.autoRefresh) state.timer = setInterval(refresh, 5000);
+  if (state.settings.autoRefresh) state.timer = setInterval(() => { refresh(); refreshAutomations(); }, 5000);
 }
 
 /* ---- events --------------------------------------------------------------- */
@@ -863,6 +1156,11 @@ function bindEvents() {
     const t = e.target.closest('[data-auto-toggle]');
     if (t) { const card = e.target.closest('[data-auto]'); toggleAutomation(card.dataset.auto, e.target.checked, e.target); }
   });
+  $('#view-automation').addEventListener('click', (e) => {
+    if (e.target.closest('#addAutoBtn') || e.target.closest('[data-add-auto]')) return openAddAutomation();
+    const run = e.target.closest('[data-auto-run]'); if (run) return runAutomation(run.dataset.autoRun);
+    const ed = e.target.closest('[data-auto-edit]'); if (ed) return openEditAutomation(ed.dataset.autoEdit);
+  });
 
   // add-device button + the banner / onboarding calls-to-action
   $('#addBtn').addEventListener('click', () => openAddForm({}));
@@ -882,7 +1180,7 @@ function bindEvents() {
   $('#setFahrenheit').checked = state.settings.fahrenheit;
   $('#setAutoRefresh').checked = state.settings.autoRefresh;
   $('#setDark').addEventListener('change', (e) => { state.settings.theme = e.target.checked ? 'dark' : 'light'; saveSettings(); applyTheme(); });
-  $('#setFahrenheit').addEventListener('change', (e) => { state.settings.fahrenheit = e.target.checked; saveSettings(); renderAll(); if (state.open) renderSheet(); });
+  $('#setFahrenheit').addEventListener('change', (e) => { state.settings.fahrenheit = e.target.checked; saveSettings(); renderAll(); renderAutomations(); if (state.open) renderSheet(); });
   $('#setAutoRefresh').addEventListener('change', (e) => { state.settings.autoRefresh = e.target.checked; saveSettings(); startPolling(); });
 
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#modal').hidden) closeSheet(); });

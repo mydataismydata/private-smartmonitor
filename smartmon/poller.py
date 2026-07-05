@@ -40,6 +40,9 @@ class DevicePoller:
         self.failures: Dict[str, int] = {}
         self._last_power_change: Dict[str, int] = {}
         self._last_mode_reverse: Dict[str, int] = {}
+        # Optional async callback run once after every poll_once (the automation engine hooks
+        # in here so routines are evaluated against fresh state each cycle). Set by the manager.
+        self.cycle_hook: Optional[Callable[[], "asyncio.Future"]] = None
 
     async def poll_device(self, device: Device) -> Optional[DeviceState]:
         backend = self.registry.backend_for(device)
@@ -116,6 +119,11 @@ class DevicePoller:
                 await self.poll_once()
             except Exception:
                 pass
+            if self.cycle_hook is not None:
+                try:
+                    await self.cycle_hook()
+                except Exception:  # a bad automation never breaks the poll loop
+                    pass
             try:
                 if stop_event:
                     await asyncio.wait_for(stop_event.wait(), timeout=self.interval_s)

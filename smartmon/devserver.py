@@ -22,7 +22,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 from . import api, discovery
-from .automations import AutomationStore, demo_automations
 from .config import Config
 from .manager import DeviceManager
 
@@ -60,7 +59,6 @@ class App:
         self.cfg = Config.from_env()
         self.bg = _Bg()
         self.manager = self.bg.run(self._build())
-        self.automations = AutomationStore(demo_automations())
         self.bg.run(self.manager.poller.poll_once())
 
     async def _build(self) -> DeviceManager:
@@ -107,11 +105,15 @@ class Handler(BaseHTTPRequestHandler):
         a = app()
         if path == "/api/devices":
             a.bg.run(a.manager.poller.poll_once())  # refresh each fetch for live feel
+            a.bg.run(a.manager.tick_automations())  # then evaluate/fire automations on fresh state
             return self._send(200, api.devices_payload(a.manager.registry, a.manager.poller))
         if path == "/api/discover":
             return self._send(200, api.mark_discovered(a.manager, a.bg.run(discovery.scan())))
         if path == "/api/automations":
-            return self._send(200, api.automations_payload(a.automations, a.manager.registry))
+            return self._send(200, api.automations_payload(a.manager.automations, a.manager.registry, a.manager.engine))
+        if path.startswith("/api/automations/"):
+            auto_id = path[len("/api/automations/"):]
+            return self._send(200, api.one_automation_payload(a.manager.automations, auto_id))
         if path == "/api/health":
             return self._send(200, api.health_payload(a.manager.registry, a.manager.poller))
         if path.endswith("/config") and path.startswith("/api/devices/"):
@@ -142,14 +144,22 @@ class Handler(BaseHTTPRequestHandler):
             if not command:
                 return self._send(200, {"ok": False, "error": "empty command"})
             return self._send(200, a.bg.run(a.manager.poller.apply(dev, command)))
+        if path == "/api/automations":
+            return self._send(200, a.bg.run(a.manager.add_automation(body)))
         if path.startswith("/api/automations/") and path.endswith("/toggle"):
             auto_id = path[len("/api/automations/"):-len("/toggle")]
-            return self._send(200, a.automations.toggle(auto_id, bool(body.get("enabled"))))
+            return self._send(200, a.bg.run(a.manager.toggle_automation(auto_id, bool(body.get("enabled")))))
+        if path.startswith("/api/automations/") and path.endswith("/run"):
+            auto_id = path[len("/api/automations/"):-len("/run")]
+            return self._send(200, a.bg.run(a.manager.run_automation(auto_id)))
         return self._send(404, {"ok": False, "error": "not found"})
 
     def do_PUT(self):
         path = urlparse(self.path).path
         a = app()
+        if path.startswith("/api/automations/"):
+            auto_id = path[len("/api/automations/"):]
+            return self._send(200, a.bg.run(a.manager.update_automation(auto_id, self._body())))
         if path.startswith("/api/devices/"):
             dev_id = path[len("/api/devices/"):]
             return self._send(200, a.bg.run(a.manager.update(dev_id, self._body())))
@@ -158,6 +168,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         path = urlparse(self.path).path
         a = app()
+        if path.startswith("/api/automations/"):
+            auto_id = path[len("/api/automations/"):]
+            return self._send(200, a.bg.run(a.manager.remove_automation(auto_id)))
         if path.startswith("/api/devices/"):
             dev_id = path[len("/api/devices/"):]
             return self._send(200, a.bg.run(a.manager.remove(dev_id)))

@@ -24,6 +24,9 @@ class Config:
     # NB: intentionally NOT "devices.json" — that's tinytuya's own file name, and sharing it would
     # let `tinytuya wizard`/`scan` read or overwrite the user's fleet. Keep them separate.
     devices_file: str = "smartmon.json"
+    # Where automations (routines) persist. Sibling of devices_file; absent -> the demo
+    # routines in demo mode, else an empty set until the first one is created in the UI.
+    automations_file: str = "automations.json"
     # Force the in-memory demo fleet even if a smartmon.json exists (handy for a
     # UI demo on your laptop). Auto-on when devices_file is absent.
     demo: bool = False
@@ -43,6 +46,7 @@ class Config:
         demo = _flag("SMART_DEMO") or not os.path.exists(devices_file)
         return cls(
             devices_file=devices_file,
+            automations_file=os.environ.get("SMART_AUTOMATIONS_FILE", cls.automations_file),
             demo=demo,
             poll_interval_s=float(os.environ.get("SMART_POLL_INTERVAL", cls.poll_interval_s)),
             tuya_timeout_s=float(os.environ.get("SMART_TUYA_TIMEOUT", cls.tuya_timeout_s)),

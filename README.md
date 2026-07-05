@@ -21,8 +21,12 @@ your OS by default). A device card opens a thermostat-style control sheet:
 - **A/C** (`ac` / `solar_ac`) → setpoint dial, −/+ stepper, Cool/Heat/Auto/Dry/Fan/Off, room-temp readout
 - **switch** → a big on/off
 
-There's also an **Automation** tab (routines, matching the mockups) — see *Roadmap* for what's wired
-vs. scaffolded.
+There's also a functional **Automation** tab: build routines that fire on a **schedule** (HH:MM on
+chosen weekdays), on **solar output** (a device's PV watts crossing a threshold), or on **room
+temperature**, each running one device action (on/off, or A/C mode + setpoint, or light brightness).
+Level triggers are edge-fired with hysteresis, and every action goes through `poller.apply`, so the
+A/C compressor's anti-short-cycle cooldowns still apply — an automation can't machine-gun the unit.
+Routines persist to `automations.json` (git-ignored, like `smartmon.json`).
 
 ## Device model
 
@@ -73,7 +77,7 @@ smartmon/
   manager.py        add/edit/remove devices: validate, persist, hot-reload (demo->live)
   store.py          atomic writes of smartmon.json
   discovery.py      LAN scan for Tuya devices (tinytuya), lazy-imported
-  automations.py    routines model + sample set (scaffold)
+  automations.py    routines: model + store (persist) + engine (schedule/solar/temp, hysteresis)
   api.py            JSON payload builders (pure, unit-tested)
   server.py         FastAPI: the JSON control + management API + serves the dashboard (production)
   devserver.py      stdlib http.server twin of the API (zero-install demo/dev)
@@ -170,8 +174,13 @@ whether a light's brightness is 10..1000 or 25..255, or a plug's power is in wat
 | DELETE | `/api/devices/{id}` | remove a device |
 | GET    | `/api/devices/{id}/config` | editable config for the form (no local key) |
 | GET    | `/api/discover` | LAN scan for Tuya devices (IP + id; needs `tinytuya`) |
-| GET    | `/api/automations` | routines |
+| GET    | `/api/automations` | routines (+ live status: `active`, `last_fired`) |
+| GET    | `/api/automations/{id}` | editable config for the form |
+| POST   | `/api/automations` | create a routine (writes `automations.json`) |
+| PUT    | `/api/automations/{id}` | edit a routine |
+| DELETE | `/api/automations/{id}` | remove a routine |
 | POST   | `/api/automations/{id}/toggle` | enable/disable a routine |
+| POST   | `/api/automations/{id}/run` | fire a routine's action now (still cooldown-gated) |
 | GET    | `/api/health` | liveness + device counts |
 
 An **A/C unit**'s on/off and heat↔cool reversals (both `ac` and `solar_ac`) are rate-limited
@@ -235,8 +244,6 @@ Built so far: the device model, Tuya-local + demo backends, the control API and 
 (Phase 1), and in-UI device management — add/edit/remove with LAN discovery and hot-reload
 (Phase 2). Deliberately **not** built yet (so nothing pretends to work that doesn't):
 
-- **Automation engine** — the routines tab is real and its toggles persist in memory, but the
-  time/trigger loop that actually *fires* routines (driving `poller.apply`) is a later phase.
 - **More backends** — TP-Link/Kasa, Hue, Zigbee-over-MQTT behind the same `Backend` interface.
 - **History & energy** — a SQLite time-series of plug wattage (SolarPi's `db.py` is a ready model).
 - **Auth** — it's LAN-only and unauthenticated today; add a token before exposing it off-LAN.

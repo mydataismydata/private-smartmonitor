@@ -56,12 +56,15 @@
 
       <!-- AUTOMATION ------------------------------------------------------ -->
       <section class="view" id="view-automation" hidden>
-        <div class="section-intro">
-          <h2>Automation</h2>
-          <p class="muted">Set your devices to work automatically with pre-configured routines.</p>
+        <div class="section-intro auto-intro">
+          <div>
+            <h2>Automation</h2>
+            <p class="muted">Routines that run your devices automatically — on a schedule, by solar output, or by temperature.</p>
+          </div>
+          <button class="btn-primary" id="addAutoBtn" title="New routine"><span data-ic="plus"></span><span>New routine</span></button>
         </div>
         <div id="automations" class="automations"></div>
-        <p class="scaffold-note" id="autoNote"></p>
+        <div class="onboard" id="autoEmpty" hidden></div>
       </section>
 
       <!-- SETTINGS -------------------------------------------------------- -->

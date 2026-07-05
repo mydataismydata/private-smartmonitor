@@ -17,7 +17,6 @@ from fastapi import Body, FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from . import api, discovery
-from .automations import AutomationStore, demo_automations
 from .config import Config
 from .manager import DeviceManager
 
@@ -60,7 +59,6 @@ def _start_mdns(port: int):
 async def lifespan(app: FastAPI):
     cfg = Config.from_env()
     manager = DeviceManager(cfg)
-    automations = AutomationStore(demo_automations())
 
     stop = asyncio.Event()
     task = asyncio.create_task(manager.poller.run(stop))
@@ -70,7 +68,6 @@ async def lifespan(app: FastAPI):
 
     app.state.cfg = cfg
     app.state.manager = manager
-    app.state.automations = automations
     try:
         yield
     finally:
@@ -157,12 +154,38 @@ async def discover():
 
 @app.get("/api/automations")
 async def automations():
-    return api.automations_payload(app.state.automations, app.state.manager.registry)
+    m = app.state.manager
+    return api.automations_payload(m.automations, m.registry, m.engine)
+
+
+@app.get("/api/automations/{automation_id}")
+async def automation(automation_id: str):
+    return api.one_automation_payload(app.state.manager.automations, automation_id)
+
+
+@app.post("/api/automations")
+async def add_automation(body: dict = Body(...)):
+    return await app.state.manager.add_automation(body)
+
+
+@app.put("/api/automations/{automation_id}")
+async def update_automation(automation_id: str, body: dict = Body(...)):
+    return await app.state.manager.update_automation(automation_id, body)
+
+
+@app.delete("/api/automations/{automation_id}")
+async def delete_automation(automation_id: str):
+    return await app.state.manager.remove_automation(automation_id)
 
 
 @app.post("/api/automations/{automation_id}/toggle")
 async def automation_toggle(automation_id: str, enabled: bool = Body(..., embed=True)):
-    return app.state.automations.toggle(automation_id, enabled)
+    return await app.state.manager.toggle_automation(automation_id, enabled)
+
+
+@app.post("/api/automations/{automation_id}/run")
+async def automation_run(automation_id: str):
+    return await app.state.manager.run_automation(automation_id)
 
 
 @app.get("/api/health")
