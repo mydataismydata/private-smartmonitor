@@ -14,7 +14,7 @@ from typing import Dict, List, Tuple
 # Supported device kinds. Each maps to a fixed capability set below.
 #   ac        an air-conditioner / thermostat unit ("A/C")
 #   solar_ac  the EG4/Deye "Solar Aircon" mini-split ("Solar A/C"): an A/C that also meters PV/grid
-DEVICE_TYPES = ("plug", "switch", "light", "ac", "solar_ac")
+DEVICE_TYPES = ("plug", "switch", "light", "ac", "solar_ac", "inverter")
 
 # Older type names accepted on load, so a smartmon.json written before the rename still works
 # (they're normalized to the current ids, and re-saved under the new names on the next edit).
@@ -31,6 +31,8 @@ TYPE_ALIASES = {"climate": "ac", "solar_appliance": "solar_ac"}
 #   fan          fan-speed enum (writable; options from fan_speeds)
 #   solar_power  PV input power, watts (read-only) — the EG4/Deye "Solar Aircon" mini-split
 #   grid_power   grid/AC input power, watts (read-only), plus the PV/grid % split
+#   battery      battery state of charge %, read-only (solar inverter)
+#   load         whole-system load in watts, read-only (solar inverter)
 CAPABILITIES: Dict[str, Tuple[str, ...]] = {
     "plug": ("power", "energy"),
     "switch": ("power",),
@@ -38,6 +40,10 @@ CAPABILITIES: Dict[str, Tuple[str, ...]] = {
     "ac": ("power", "mode", "setpoint", "temperature", "fan"),
     # The solar mini-split is an A/C unit that ALSO meters its PV vs. grid power (LAN-only DPs).
     "solar_ac": ("power", "mode", "setpoint", "temperature", "fan", "solar_power", "grid_power"),
+    # A whole-house solar inverter, read via SolarPi's API (no on/off control). Its PV production is
+    # the independent "is there sun?" signal a solar automation should trigger on — unlike the
+    # mini-split's own DP 106, which only reads while the unit is running.
+    "inverter": ("solar_power", "battery", "load"),
 }
 
 # Canonical A/C modes the UI/API speak. A backend maps these onto whatever the
@@ -49,8 +55,9 @@ AC_MODES = ("auto", "cool", "heat", "dry", "fan")
 # options.fan_speeds. Default matches the EG4/Deye "Solar Aircon" (SolarPi's DP-23 reverse-eng).
 FAN_SPEEDS_DEFAULT = ("auto", "low", "medium", "high")
 
-# Backends a device can be driven by. "demo" is the in-memory simulator.
-PROTOCOLS = ("demo", "tuya")
+# Backends a device can be driven by. "demo" is the in-memory simulator; "solarpi" reads a solar
+# inverter's live metrics from a running SolarPi instance's HTTP API.
+PROTOCOLS = ("demo", "tuya", "solarpi")
 
 
 class DeviceConfigError(ValueError):

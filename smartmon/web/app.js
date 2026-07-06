@@ -37,17 +37,20 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
   chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
   ac: '<rect x="2" y="4" width="20" height="9" rx="2"/><line x1="5.5" y1="9.5" x2="14" y2="9.5"/><path d="M6 17.5c1.6 0 1.6-1.5 3.2-1.5M12 18.5c1.6 0 1.6-1.5 3.2-1.5M16 16.5c1.6 0 1.6-1.5 3.2-1.5"/>',
+  inverter: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M6.5 12c1-2.6 2-2.6 3 0s2 2.6 3 0 2-2.6 3 0"/>',
+  battery: '<rect x="2" y="7" width="17" height="10" rx="2"/><line x1="22" y1="10.5" x2="22" y2="13.5"/><rect x="4.5" y="9.5" width="8" height="5" rx="1" fill="currentColor" stroke="none"/>',
 };
 const icon = (name, cls) =>
   `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`;
 
-const TYPE_ICON = { light: 'bulb', plug: 'plug', switch: 'power', ac: 'ac', solar_ac: 'sun' };
+const TYPE_ICON = { light: 'bulb', plug: 'plug', switch: 'power', ac: 'ac', solar_ac: 'sun', inverter: 'inverter' };
 const TYPES = [
   { t: 'plug', label: 'Plug', ic: 'plug' },
   { t: 'light', label: 'Light', ic: 'bulb' },
   { t: 'switch', label: 'Switch', ic: 'power' },
   { t: 'ac', label: 'A/C', ic: 'ac' },
   { t: 'solar_ac', label: 'Solar A/C', ic: 'sun' },
+  { t: 'inverter', label: 'Solar Inverter', ic: 'inverter' },
 ];
 const MODES = [
   { m: 'cool', ic: 'snow', label: 'Cool' },
@@ -194,32 +197,49 @@ function deviceBody(d) {
       return `<div class="device-metric">${t.v}<small>${t.u}</small></div>
         <span class="chip ${cls}">${icon(mi)}${cap(st.mode || '')}</span>`;
     }
+    case 'inverter': {
+      const pv = Math.round(st.solar_power_w ?? 0);
+      return `<div class="device-metric">${pv}<small>W solar</small></div>`;
+    }
     default:
       return `<span class="device-state-txt">${st.power ? 'On' : 'Off'}</span>`;
   }
 }
 
-// The PV / grid power row shown under a solar mini-split's card.
+// The extra metric row under a card: PV/grid for the mini-split, battery/load for the inverter.
 function solarExtra(d) {
   const st = d.state || {};
-  if (d.type !== 'solar_ac' || !d.online || !st.power) return '';
-  return `<div class="device-extra">
-    <span class="ex solar">${icon('sun')}<b>${Math.round(st.solar_power_w || 0)}</b> W<small>solar</small></span>
-    <span class="ex grid">${icon('bolt')}<b>${Math.round(st.grid_power_w || 0)}</b> W<small>AC</small></span>
-  </div>`;
+  if (d.type === 'solar_ac' && d.online && st.power) {
+    return `<div class="device-extra">
+      <span class="ex solar">${icon('sun')}<b>${Math.round(st.solar_power_w || 0)}</b> W<small>solar</small></span>
+      <span class="ex grid">${icon('bolt')}<b>${Math.round(st.grid_power_w || 0)}</b> W<small>AC</small></span>
+    </div>`;
+  }
+  if (d.type === 'inverter' && d.online) {
+    const batt = st.battery_percent != null ? `${st.battery_percent}%` : '—';
+    return `<div class="device-extra">
+      <span class="ex batt">${icon('battery')}<b>${batt}</b><small>battery</small></span>
+      <span class="ex grid">${icon('bolt')}<b>${Math.round(st.load_w || 0)}</b> W<small>load</small></span>
+    </div>`;
+  }
+  return '';
 }
+
+function isControllable(d) { return (d.capabilities || []).includes('power'); }
 
 function deviceCard(d) {
   const st = d.state || {};
-  const on = d.online && st.power;
+  const ctl = isControllable(d);
+  const on = ctl ? (d.online && st.power) : d.online;   // read-only devices (inverter): lit when online
   const disabled = !d.online ? 'disabled' : '';
+  const toggle = ctl
+    ? `<label class="switch device-switch" data-toggle><input type="checkbox" ${st.power ? 'checked' : ''} ${disabled} /><i></i></label>`
+    : `<span class="ro-tag" title="Read-only device">${icon('info')}</span>`;
   return `<div class="card device ${on ? 'on' : 'off'}" data-id="${d.id}">
     <div class="device-top">
       <span class="device-ic">${icon(TYPE_ICON[d.type] || 'power')}</span>
       <span class="device-id"><div class="device-name">${d.name}</div><div class="device-room">${d.room}</div></span>
-      <label class="switch device-switch" data-toggle>
-        <input type="checkbox" ${st.power ? 'checked' : ''} ${disabled} /><i></i>
-      </label>
+      ${toggle}
     </div>
     <div class="device-body">${deviceBody(d)}</div>
     ${solarExtra(d)}
@@ -548,6 +568,17 @@ function renderSheet() {
         <div><span class="fi">${icon('bolt')}</span><span><span class="fv">${Math.round(w)} W</span><div class="fl">Now</div></span></div>
         <div><span class="fi">${icon('power')}</span><span><span class="fv">${st.power ? 'On' : 'Off'}</span><div class="fl">State</div></span></div>
       </div>`;
+  } else if (d.type === 'inverter') {
+    const pv = Math.round(st.solar_power_w ?? 0);
+    const softMax = Math.max(1000, Math.ceil((pv + 1) / 1000) * 1000);
+    const batt = st.battery_percent != null ? `${st.battery_percent}%` : '—';
+    body = `
+      ${dialHTML(Math.min(1, pv / softMax), 'var(--amber)', `<div class="dial-ic">${icon('sun')}</div><div class="dial-val" id="dialVal">${pv}<small>W</small></div><div class="dial-cap">Solar now</div>`)}
+      <div class="sheet-foot">
+        <div><span class="fi">${icon('battery')}</span><span><span class="fv" id="invBatt">${batt}</span><div class="fl">Battery</div></span></div>
+        <div><span class="fi">${icon('bolt')}</span><span><span class="fv" id="invLoad">${Math.round(st.load_w ?? 0)} W</span><div class="fl">Load</div></span></div>
+      </div>
+      <div class="ro-note">${icon('info')}<span>Read-only — live figures from SolarPi. Use it as a <b>solar</b> trigger source in Automation.</span></div>`;
   } else {
     body = `
       <div class="dial-wrap"><div class="dial-center"><div class="dial-ic" style="color:${st.power ? 'var(--accent)' : 'var(--ink-3)'}">${icon('power')}</div><div class="dial-val">${st.power ? 'On' : 'Off'}</div></div>
@@ -580,6 +611,14 @@ function refreshSheetLive() {
     const w = st.power_w ?? 0;
     const softMax = Math.max(100, Math.ceil((w + 1) / 100) * 100);
     setDial(Math.min(1, w / softMax), 'var(--blue)', `${Math.round(w)}<small>W</small>`);
+  }
+  if (d.type === 'inverter') {
+    const pv = st.solar_power_w ?? 0;
+    const softMax = Math.max(1000, Math.ceil((pv + 1) / 1000) * 1000);
+    setDial(Math.min(1, pv / softMax), 'var(--amber)', `${Math.round(pv)}<small>W</small>`);
+    const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+    set('invBatt', st.battery_percent != null ? `${st.battery_percent}%` : '—');
+    set('invLoad', `${Math.round(st.load_w || 0)} W`);
   }
   if (d.type === 'solar_ac') {
     const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
@@ -651,18 +690,27 @@ function renderDeviceForm({ mode, id, data }) {
         <input id="f_room" value="${esc(data.room)}" placeholder="e.g. Living Room" list="roomList" />
         <datalist id="roomList">${rooms.map((r) => `<option value="${esc(r)}"></option>`).join('')}</datalist>
       </div>
-      <div class="form-row split">
-        <div class="form-row"><label>IP address <span class="req">*</span></label><input id="f_ip" value="${esc(data.ip)}" placeholder="192.168.1.50" /></div>
-        <div class="form-row"><label>Version</label><input id="f_version" value="${esc(data.version || 3.3)}" placeholder="3.3" /></div>
+      <div id="tuyaFields" ${type === 'inverter' ? 'hidden' : ''}>
+        <div class="form-row split">
+          <div class="form-row"><label>IP address <span class="req">*</span></label><input id="f_ip" value="${esc(data.ip)}" placeholder="192.168.1.50" /></div>
+          <div class="form-row"><label>Version</label><input id="f_version" value="${esc(data.version || 3.3)}" placeholder="3.3" /></div>
+        </div>
+        <div class="form-row">
+          <label>Device ID <span class="req">*</span></label>
+          <input id="f_device_id" value="${esc(data.device_id)}" placeholder="Tuya device id (gwId)" />
+        </div>
+        <div class="form-row">
+          <label>Local key ${mode === 'edit' ? '' : '<span class="req">*</span>'}</label>
+          <input id="f_local_key" type="password" placeholder="${keyHint}" autocomplete="off" />
+          <span class="hint">From <code>tinytuya wizard</code> — stored only on this server.</span>
+        </div>
       </div>
-      <div class="form-row">
-        <label>Device ID <span class="req">*</span></label>
-        <input id="f_device_id" value="${esc(data.device_id)}" placeholder="Tuya device id (gwId)" />
-      </div>
-      <div class="form-row">
-        <label>Local key ${mode === 'edit' ? '' : '<span class="req">*</span>'}</label>
-        <input id="f_local_key" type="password" placeholder="${keyHint}" autocomplete="off" />
-        <span class="hint">From <code>tinytuya wizard</code> — stored only on this server.</span>
+      <div id="inverterFields" ${type === 'inverter' ? '' : 'hidden'}>
+        <div class="form-row">
+          <label>SolarPi URL</label>
+          <input id="f_url" value="${esc((data.options && data.options.url) || '')}" placeholder="http://127.0.0.1:8000" />
+          <span class="hint">Reads live PV / battery / load from your running SolarPi. Leave blank to use the default.</span>
+        </div>
       </div>
       <button class="adv-toggle" data-adv>Advanced · DP / option overrides</button>
       <div class="adv" id="advBox" hidden>
@@ -679,24 +727,40 @@ function renderDeviceForm({ mode, id, data }) {
         <button class="btn-primary" data-save="${mode}" ${mode === 'edit' ? `data-id="${esc(data.id)}"` : ''}>${mode === 'edit' ? 'Save' : 'Add device'}</button>
       </div>
     </div>`);
+  syncDeviceForm(type);
+}
+
+// Show the connection fields that match the chosen type: a SolarPi URL for an inverter, else the
+// Tuya-local fields. The scan button only makes sense for Tuya.
+function syncDeviceForm(type) {
+  const isInv = type === 'inverter';
+  const tf = $('#tuyaFields'), invf = $('#inverterFields'), scan = $('[data-scan]');
+  if (tf) tf.hidden = isInv;
+  if (invf) invf.hidden = !isInv;
+  if (scan) scan.style.display = isInv ? 'none' : '';
 }
 
 function collectForm() {
   const val = (id) => { const el = $('#' + id); return el ? el.value.trim() : ''; };
-  const body = {
-    type: val('f_type'),
-    name: val('f_name'),
-    room: val('f_room'),
-    protocol: 'tuya',
-    ip: val('f_ip'),
-    device_id: val('f_device_id'),
-    version: parseFloat(val('f_version')) || 3.3,
-  };
-  const key = val('f_local_key');
-  if (key) body.local_key = key;
-  const dps = val('f_dps'), opt = val('f_options');
-  if (dps) body.dps = JSON.parse(dps);       // may throw -> caught by caller
-  if (opt) body.options = JSON.parse(opt);
+  const type = val('f_type');
+  const body = { type, name: val('f_name'), room: val('f_room') };
+  if (type === 'inverter') {
+    body.protocol = 'solarpi';
+    const url = val('f_url');
+    const opt = val('f_options');
+    body.options = opt ? JSON.parse(opt) : {};   // may throw -> caught by caller
+    if (url) body.options.url = url;
+  } else {
+    body.protocol = 'tuya';
+    body.ip = val('f_ip');
+    body.device_id = val('f_device_id');
+    body.version = parseFloat(val('f_version')) || 3.3;
+    const key = val('f_local_key');
+    if (key) body.local_key = key;
+    const dps = val('f_dps'), opt = val('f_options');
+    if (dps) body.dps = JSON.parse(dps);       // may throw -> caught by caller
+    if (opt) body.options = JSON.parse(opt);
+  }
   return body;
 }
 
@@ -706,7 +770,7 @@ async function submitDeviceForm(mode, id) {
   try { body = collectForm(); }
   catch (_) { err.textContent = 'Advanced fields must be valid JSON.'; return; }
   if (!body.name) { err.textContent = 'Give the device a name.'; return; }
-  if (!body.ip || !body.device_id || (mode === 'add' && !body.local_key)) {
+  if (body.protocol === 'tuya' && (!body.ip || !body.device_id || (mode === 'add' && !body.local_key))) {
     err.textContent = 'IP, device ID, and local key are required.'; return;
   }
   let res;
@@ -840,6 +904,7 @@ function bindSheetEvents() {
     if (typeBtn) {
       $$('#typePick [data-type]').forEach((b) => b.classList.toggle('active', b === typeBtn));
       $('#f_type').value = typeBtn.dataset.type;
+      syncDeviceForm(typeBtn.dataset.type);
       return;
     }
     if (e.target.closest('[data-adv]')) { const a = $('#advBox'); if (a) a.hidden = !a.hidden; return; }
@@ -925,8 +990,8 @@ function renderAutomationForm({ mode, id, data }) {
   const trig = data.trigger || { type: 'schedule' };
   const cmd = (data.action && data.action.command) || {};
   const ttype = trig.type || 'schedule';
-  const allDevs = state.data.devices || [];
-  const target = (data.action && data.action.device_id) || (allDevs[0] && allDevs[0].id) || '';
+  const ctlDevs = (state.data.devices || []).filter(isControllable);  // read-only devices can't be an action target
+  const target = (data.action && data.action.device_id) || (ctlDevs[0] && ctlDevs[0].id) || '';
   const cmp = trig.comparator || 'above';
   const unit = state.settings.fahrenheit ? '°F' : '°C';
   const toU = (c) => Math.round(state.settings.fahrenheit ? c * 9 / 5 + 32 : c);
@@ -991,7 +1056,7 @@ function renderAutomationForm({ mode, id, data }) {
 
       <div class="form-row">
         <label>Then control <span class="req">*</span></label>
-        <select id="a_target">${deviceOptions(allDevs, target)}</select>
+        <select id="a_target">${deviceOptions(ctlDevs, target)}</select>
       </div>
       <div class="form-row">
         <label>Set to</label>

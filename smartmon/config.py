@@ -34,6 +34,9 @@ class Config:
     poll_interval_s: float = 10.0
     # Per-device socket timeout for the Tuya-local backend.
     tuya_timeout_s: float = 5.0
+    # Base URL of the sibling SolarPi instance, used by `inverter` (solarpi) devices to read live
+    # PV/battery/load. Defaults to SolarPi on the same Pi; override per device with options.url.
+    solarpi_url: str = "http://127.0.0.1:8000"
     # Port the dashboard is served on. uvicorn owns the actual bind; this value is
     # only used to advertise the right port over mDNS (_smartmon._tcp). Defaults to
     # 8001 so it sits alongside SolarPi (8000) on the same Pi without clashing.
@@ -50,5 +53,6 @@ class Config:
             demo=demo,
             poll_interval_s=float(os.environ.get("SMART_POLL_INTERVAL", cls.poll_interval_s)),
             tuya_timeout_s=float(os.environ.get("SMART_TUYA_TIMEOUT", cls.tuya_timeout_s)),
+            solarpi_url=os.environ.get("SMART_SOLARPI_URL", cls.solarpi_url),
             http_port=int(os.environ.get("SMART_HTTP_PORT", cls.http_port)),
         )

@@ -45,12 +45,18 @@ class DemoBackend(Backend):
             speeds = device.fan_speeds
             st.fan_speed = str(device.option("demo_fan", speeds[0] if speeds else "auto"))
         if device.has("solar_power"):
-            solar = float(device.option("demo_solar", 620)) if st.power else 0.0
+            st.solar_power_w = float(device.option("demo_solar", 620)) if st.power else 0.0
+        if device.has("grid_power"):  # the mini-split's PV-vs-grid split (not the inverter)
             grid = float(device.option("demo_grid", 45)) if st.power else 0.0
-            st.solar_power_w, st.grid_power_w = solar, grid
+            solar = st.solar_power_w or 0.0
+            st.grid_power_w = grid
             total = solar + grid
             st.solar_percent = round(solar / total * 100) if total else 0
             st.grid_percent = 100 - st.solar_percent if total else 0
+        if device.has("battery"):
+            st.battery_percent = int(device.option("demo_battery", 76))
+        if device.has("load"):
+            st.load_w = float(device.option("demo_load", 850))
         return st
 
     def _get(self, device: Device) -> DeviceState:
@@ -74,6 +80,8 @@ class DemoBackend(Backend):
             out.solar_power_w = round(max(0.0, st.solar_power_w + random.uniform(-40, 40)), 0)
         if out.grid_power_w is not None and out.power:
             out.grid_power_w = round(max(0.0, st.grid_power_w + random.uniform(-8, 8)), 0)
+        if out.load_w is not None:
+            out.load_w = round(max(0.0, st.load_w + random.uniform(-35, 35)), 0)
         return out
 
     async def apply(self, device: Device, command: Command) -> Dict[str, object]:
@@ -104,6 +112,8 @@ def demo_devices() -> list:
         ("living-ac", "Living Mini-Split", "solar_ac", "Living Room",
          {"demo_mode": "cool", "demo_setpoint": 16, "demo_temp": 16, "demo_solar": 659, "demo_grid": 40,
           "demo_fan": "medium"}),
+        ("solar-inverter", "Solar Inverter", "inverter", "Utility",
+         {"demo_solar": 2450, "demo_battery": 82, "demo_load": 900}),
         ("kitchen-coffee", "Coffee Maker", "plug", "Kitchen", {"demo_power": False, "demo_watts": 950}),
         ("kitchen-lights", "Kitchen Lights", "light", "Kitchen", {"demo_brightness": 100}),
         ("bedroom-lamp", "Bedside Lamp", "light", "Bedroom", {"demo_power": False, "demo_brightness": 30}),

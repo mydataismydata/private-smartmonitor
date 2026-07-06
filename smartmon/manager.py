@@ -61,7 +61,8 @@ class DeviceManager:
     async def _commit(self, devices: List[Device]) -> None:
         """Persist the fleet, rebuild a live registry, and swap it into the running poller."""
         store.save_devices(self.cfg.devices_file, devices)
-        new_reg = Registry(devices, demo=False, tuya_timeout=self.cfg.tuya_timeout_s)
+        new_reg = Registry(devices, demo=False, tuya_timeout=self.cfg.tuya_timeout_s,
+                           solarpi_url=self.cfg.solarpi_url)
         keep = {d.id for d in devices}
         for gone in [i for i in list(self.poller.states) if i not in keep]:
             self.poller.states.pop(gone, None)

@@ -392,7 +392,9 @@ def demo_automations() -> List[Automation]:
     return [
         Automation(
             id="free-cooling", name="Free Solar Cooling",
-            trigger=Trigger(type="solar", source="living-ac", comparator="above", value=500),
+            # Trigger off the inverter's whole-system PV, not the mini-split's own meter (which reads
+            # 0 while it's off) — so it can switch the unit ON when there's surplus sun.
+            trigger=Trigger(type="solar", source="solar-inverter", comparator="above", value=1500),
             action=Action(device_id="living-ac", command={"power": True, "mode": "cool", "setpoint": 22}),
         ),
         Automation(

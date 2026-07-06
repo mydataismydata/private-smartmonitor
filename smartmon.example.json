@@ -49,6 +49,15 @@
       "_note": "The EG4/Deye 'Solar Aircon' mini-split (same unit SolarPi reads). The solar_ac type surfaces its PV power (DP 106) and grid/AC power (DP 111) split, knows this unit's mixed cold/hot/dry/wind mode names (no mode_map needed), and controls fan speed on DP 23. Set options.temp_divisor to 10 if a live status() shows temps in tenths, or options.fan_speeds if your unit's fan enum differs from auto/low/medium/high. (Type 'ac' is a plain A/C without the solar metering.)"
     },
     {
+      "id": "solar-inverter",
+      "name": "Solar Inverter",
+      "room": "Utility",
+      "type": "inverter",
+      "protocol": "solarpi",
+      "options": { "url": "http://127.0.0.1:8000" },
+      "_note": "A read-only whole-house solar inverter, read live from your running SolarPi's API (GET /api/current: pv_power, battery_soc, load_total). Use its PV output as the 'solar' trigger source for automations so a routine can switch things ON when there's surplus sun — unlike the mini-split's DP 106, which reads 0 whenever the A/C is off. 'url' defaults to SolarPi on localhost:8000; set it if SolarPi runs elsewhere, or options.field_map to remap the JSON field names."
+    },
+    {
       "id": "old-lamp",
       "name": "Older Dimmable Lamp",
       "room": "Office",

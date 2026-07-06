@@ -11,4 +11,4 @@ dashboard. It ships pointing at an in-memory DEMO fleet, so it runs anywhere out
 of the box; point it at real hardware with a smartmon.json (see smartmon.example.json).
 """
 
-__version__ = "0.5.1"
+__version__ = "0.6.0"

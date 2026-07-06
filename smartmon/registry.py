@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 
 from .backends.base import Backend
 from .backends.demo import DemoBackend, demo_devices
+from .backends.solarpi import SolarPiBackend
 from .backends.tuya import TuyaBackend
 from .config import Config
 from .devices import Device, DeviceConfigError
@@ -37,7 +38,8 @@ class Registry:
     """Holds the loaded devices plus one backend instance per protocol in use, and
     resolves the right backend for any device."""
 
-    def __init__(self, devices: List[Device], demo: bool, tuya_timeout: float = 5.0):
+    def __init__(self, devices: List[Device], demo: bool, tuya_timeout: float = 5.0,
+                 solarpi_url: str = "http://127.0.0.1:8000"):
         self.devices = devices
         self.demo = demo
         self.by_id: Dict[str, Device] = {d.id: d for d in devices}
@@ -46,6 +48,8 @@ class Registry:
             self._backends["demo"] = DemoBackend(devices)
         if any(d.protocol == "tuya" for d in devices):
             self._backends["tuya"] = TuyaBackend(timeout=tuya_timeout)
+        if any(d.protocol == "solarpi" for d in devices):
+            self._backends["solarpi"] = SolarPiBackend(default_url=solarpi_url, timeout=tuya_timeout)
 
     def backend_for(self, device: Device) -> Optional[Backend]:
         proto = "demo" if self.demo else device.protocol
@@ -59,6 +63,6 @@ class Registry:
                 devices = load_devices_file(cfg.devices_file)
             except (OSError, DeviceConfigError, ValueError):
                 devices = demo_devices()
-            return cls(devices, demo=True, tuya_timeout=cfg.tuya_timeout_s)
+            return cls(devices, demo=True, tuya_timeout=cfg.tuya_timeout_s, solarpi_url=cfg.solarpi_url)
         devices = load_devices_file(cfg.devices_file)
-        return cls(devices, demo=False, tuya_timeout=cfg.tuya_timeout_s)
+        return cls(devices, demo=False, tuya_timeout=cfg.tuya_timeout_s, solarpi_url=cfg.solarpi_url)

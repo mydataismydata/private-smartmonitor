@@ -482,3 +482,13 @@ input[type="range"].slider::-moz-range-thumb { width: 26px; height: 26px; border
 .seg button { font-size: 13.5px; font-weight: 650; color: var(--ink-2); background: transparent; border: 0;
   border-radius: 9px; padding: 8px 22px; cursor: pointer; }
 .seg button.active { background: var(--surface); color: var(--accent-ink); box-shadow: var(--shadow-sm); }
+
+/* ---- solar inverter (read-only device) ------------------------------------ */
+.ro-tag { width: 40px; height: 24px; display: grid; place-items: center; color: var(--ink-3); }
+.ro-tag svg { width: 18px; height: 18px; }
+.device-extra .ex.batt svg { color: var(--accent-ink); }
+.ro-note { display: flex; align-items: center; gap: 9px; margin-top: 14px; padding: 11px 13px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
+  font-size: 12.5px; color: var(--ink-2); line-height: 1.4; }
+.ro-note svg { width: 16px; height: 16px; color: var(--ink-3); flex: none; }
+.ro-note b { color: var(--ink); }

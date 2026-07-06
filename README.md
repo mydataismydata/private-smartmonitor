@@ -20,6 +20,9 @@ your OS by default). A device card opens a thermostat-style control sheet:
 - **plug** → live power-draw dial + on/off
 - **A/C** (`ac` / `solar_ac`) → setpoint dial, −/+ stepper, Cool/Heat/Auto/Dry/Fan/Off, room-temp readout
 - **switch** → a big on/off
+- **solar inverter** (`inverter`) → **read-only** PV / battery / load, read live from a sibling SolarPi
+  over HTTP (`protocol: "solarpi"`). It's not controllable — it exists to give automations an
+  independent "is there sun?" signal (see below).
 
 There's also a functional **Automation** tab: build routines that fire on a **schedule** (HH:MM on
 chosen weekdays), on **solar output** (a device's PV watts crossing a threshold), or on **room
@@ -27,6 +30,11 @@ temperature**, each running one device action (on/off, or A/C mode + setpoint, o
 Level triggers are edge-fired with hysteresis, and every action goes through `poller.apply`, so the
 A/C compressor's anti-short-cycle cooldowns still apply — an automation can't machine-gun the unit.
 Routines persist to `automations.json` (git-ignored, like `smartmon.json`).
+
+For a solar trigger, use an **`inverter`** device as the source, not the mini-split: the mini-split's
+DP 106 only reads while it's running (0 when off), so it can never trigger *turning the unit on*. The
+`inverter` device reads whole-system PV from SolarPi's `GET /api/current` (`SMART_SOLARPI_URL`, default
+`http://127.0.0.1:8000`), which reflects production regardless of what's running.
 
 ## Device model
 
@@ -71,6 +79,7 @@ smartmon/
   backends/
     base.py         DeviceState + the Backend interface
     tuya.py         Tuya-local driver + a pure, tested DP codec
+    solarpi.py      read-only solar-inverter driver (reads a sibling SolarPi's /api/current)
     demo.py         in-memory simulator + the sample fleet
   registry.py       load smartmon.json (or the demo fleet) and wire up backends
   poller.py         poll loop + control entry point (A/C anti-short-cycle policy)
