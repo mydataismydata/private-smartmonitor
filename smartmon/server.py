@@ -10,6 +10,7 @@ drop in a smartmon.json) to drive real hardware.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -55,8 +56,22 @@ def _start_mdns(port: int):
         return None, None
 
 
+def _setup_logging() -> None:
+    """Send smartmon INFO logs (control actions, automation firings) to stdout -> the journal,
+    regardless of uvicorn's own logging config. `journalctl --user -u smartmon` then shows them."""
+    lg = logging.getLogger("smartmon")
+    lg.setLevel(os.environ.get("SMART_LOG_LEVEL", "INFO"))
+    if not any(getattr(h, "_smartmon", False) for h in lg.handlers):
+        h = logging.StreamHandler()
+        h.setFormatter(logging.Formatter("%(asctime)s %(name)s: %(message)s"))
+        h._smartmon = True  # marker so we don't stack handlers on reload
+        lg.addHandler(h)
+    lg.propagate = False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _setup_logging()
     cfg = Config.from_env()
     manager = DeviceManager(cfg)
 

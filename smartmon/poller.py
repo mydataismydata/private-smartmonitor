@@ -10,12 +10,15 @@ device are gated by a 5-minute cooldown. Plugs, lights, and switches toggle free
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import Callable, Dict, Optional
 
 from .backends.base import Command, DeviceState
 from .devices import Device
 from .registry import Registry
+
+log = logging.getLogger("smartmon.control")  # control (write) actions only — polls are not logged
 
 POWER_COOLDOWN_S = 300         # min seconds between an A/C unit's on/off changes
 MODE_REVERSE_COOLDOWN_S = 300  # min seconds between heat<->cool switches (compressor reversal)
@@ -96,14 +99,21 @@ class DevicePoller:
         # cooldown — otherwise switching e.g. Cool->Dry starts a countdown but never changes mode.
         switching_power = "power" in command and bool(command["power"]) != bool(cur_power)
         reversing = "mode" in command and _is_compressor_reverse(cur_mode, str(command["mode"]))
+        # Every control action is logged (polls are not), so a mystery on/off can be traced to
+        # whether — and when — this app sent a command: `journalctl --user -u smartmon | grep control`.
+        log.info("control %s <- %s (was power=%s mode=%s; switching_power=%s reversing=%s)",
+                 device.id, command, cur_power, cur_mode, switching_power, reversing)
 
         if device.type in COMPRESSOR_TYPES:
             if switching_power and self.power_cooldown_remaining(device) > 0:
+                log.info("control %s BLOCKED by power cooldown (%ss left)", device.id, self.power_cooldown_remaining(device))
                 return {"ok": False, "cooldown": True, "retry_after": self.power_cooldown_remaining(device), "reason": "power"}
             if reversing and self.mode_cooldown_remaining(device) > 0:
+                log.info("control %s BLOCKED by mode-reverse cooldown (%ss left)", device.id, self.mode_cooldown_remaining(device))
                 return {"ok": False, "cooldown": True, "retry_after": self.mode_cooldown_remaining(device), "reason": "mode_reverse"}
 
         res = await backend.apply(device, command)
+        log.info("control %s applied %s -> ok=%s", device.id, command, res.get("ok"))
         if res.get("ok"):
             now = int(self.clock())
             if device.type in COMPRESSOR_TYPES and switching_power:

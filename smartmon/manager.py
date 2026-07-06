@@ -13,6 +13,7 @@ so you never have to re-enter a secret just to rename a device or move it to ano
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import Dict, List, Optional
 
@@ -22,6 +23,8 @@ from .config import Config
 from .devices import Device, DeviceConfigError
 from .poller import DevicePoller
 from .registry import Registry
+
+log = logging.getLogger("smartmon.automation")
 
 # Fields the UI is allowed to set on a device (never the id — that's immutable).
 _EDITABLE = ("name", "type", "protocol", "ip", "device_id")
@@ -116,6 +119,7 @@ class DeviceManager:
         isn't marked fired and is retried on a later cycle."""
         tc = autos.now_context(time.time(), time.localtime())
         for decision in self.engine.due(tc, self.poller.states, self.registry):
+            log.info("automation %r firing -> %s %s", decision.automation_id, decision.device.id, decision.command)
             res = await self.poller.apply(decision.device, decision.command)
             if res.get("ok"):
                 self.engine.mark_fired(decision.automation_id, tc)

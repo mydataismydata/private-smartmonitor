@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -188,6 +189,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    logging.basicConfig(level=os.environ.get("SMART_LOG_LEVEL", "INFO"),
+                        format="%(asctime)s %(name)s: %(message)s")
     port = int(os.environ.get("SMART_HTTP_PORT", "8001"))
     app()
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
