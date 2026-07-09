@@ -29,6 +29,13 @@ import time
 
 MODE_DP = "4"
 FAN_DP = "23"
+# Human labels for this mini-split's datapoints (from SolarPi's reverse-engineering) — used by the
+# --watch trace so you can see at a glance which signal changed.
+DP_LABELS = {
+    "1": "power", "2": "setpoint_c", "3": "room_c", "4": "mode", "19": "setpoint_f", "20": "room_f",
+    "21": "temp_unit", "22": "work_status", "23": "fan", "24": "fault",
+    "106": "solar_w", "108": "solar_pct", "109": "grid_pct", "111": "grid_w",
+}
 # Candidate Dry tokens seen across Tuya A/C firmwares (all cooling-family — none reverse the
 # compressor). "wet" is the default that already failed on this unit; the rest are the usual
 # alternates.
@@ -146,10 +153,56 @@ def find_dry(tinytuya, d):
               "I'll remove the Dry button for it.")
 
 
+def watch(tinytuya, d, interval):
+    """Poll one device forever and print every datapoint change with a timestamp — READ ONLY.
+    Run it with the other apps stopped to see whether the unit changes state on its own: if DP 1
+    (power) flips to False with nothing controlling it, the unit is switching ITSELF off; if power
+    stays True and only work_status/PV move, that's the compressor's own thermostat cycling; a
+    non-zero DP 24 is a fault trip."""
+    def connect():
+        dev = tinytuya.Device(d["device_id"], d["ip"], d["local_key"], version=float(d.get("version", 3.3)))
+        dev.set_socketTimeout(5)
+        return dev
+
+    dev = connect()
+    prev = {}
+    lbl = lambda k: DP_LABELS.get(k, "dp" + k)  # noqa: E731
+    print("  WATCHING %s every %ss — Ctrl+C to stop. Key DPs: 1=power, 4=mode, 22=work_status, 24=fault."
+          % (d.get("id"), interval))
+    while True:
+        try:
+            st = dev.status()
+        except Exception as e:  # noqa: BLE001
+            st = e
+        ts = time.strftime("%H:%M:%S")
+        dps = st.get("dps") if isinstance(st, dict) else None
+        if not dps:
+            print("  %s  read error: %s" % (ts, st))
+            dev = connect()  # force a clean reconnect
+        elif not prev:
+            shown = ", ".join("%s=%r" % (lbl(k), dps[k]) for k in sorted(dps, key=lambda x: (len(x), x)))
+            print("  %s  initial: %s" % (ts, shown))
+            prev = dict(dps)
+        else:
+            changes = {k: v for k, v in dps.items() if prev.get(k) != v}
+            if changes:
+                pretty = ", ".join("%s %r->%r" % (lbl(k), prev.get(k), v) for k, v in sorted(changes.items()))
+                flags = []
+                if "1" in changes:
+                    flags.append("*** POWER %s ***" % ("OFF" if not dps.get("1") else "ON"))
+                if "24" in changes and dps.get("24") not in (0, "0", "", None):
+                    flags.append("*** FAULT %r ***" % dps.get("24"))
+                print("  %s  CHANGED: %s%s" % (ts, pretty, ("   " + " ".join(flags)) if flags else ""))
+            prev = dict(dps)
+        time.sleep(interval)
+
+
 def main():
     args = sys.argv[1:]
     active = "--find-dry" in args
-    ids = [a for a in args if not a.startswith("-")]
+    watching = "--watch" in args
+    interval = next((int(a) for a in args if a.isdigit()), 8)  # optional seconds after --watch
+    ids = [a for a in args if not a.startswith("-") and not a.isdigit()]
     want_id = ids[0] if ids else None
 
     cfg = find_config()
@@ -166,6 +219,10 @@ def main():
             continue
         matched += 1
         print(f"\n=== {d.get('name')}  (id={d.get('id')}, type={d.get('type')})  @ {d.get('ip')} ===")
+
+        if watching:
+            watch(tinytuya, d, interval)  # blocks until Ctrl+C
+            return
 
         schema, note = cloud_schema(tinytuya, d["device_id"])
         if schema:
